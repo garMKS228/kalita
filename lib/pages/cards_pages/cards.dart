@@ -19,15 +19,16 @@ class CardDetailsPage extends StatefulWidget {
 class _CardDetailsPageState extends State<CardDetailsPage> {
   late bool isFavorite;
   
-  // Состояния для режима редактирования
   bool isEditing = false;
   late TextEditingController _titleController;
   late TextEditingController _barcodeDataController;
   late Color _selectedColor;
+  late String _selectedType;
 
-  // Список доступных цветов для выбора
+  final List<String> _barcodeTypes = ['QR Code', 'EAN-13', 'Code 128', 'UPC-A'];
+
   final List<Color> _availableColors = [
-    const Color(0xFF9276F6), // Стандартный фиолетовый
+    const Color(0xFF9276F6),
     Colors.redAccent,
     Colors.pinkAccent,
     Colors.orangeAccent,
@@ -36,16 +37,18 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
     Colors.deepOrange,
     Colors.teal,
     Colors.blueGrey,
-    const Color(0xFF222222), // Почти черный
+    const Color(0xFF222222),
   ];
 
   @override
   void initState() {
     super.initState();
     isFavorite = widget.cardItem.is_favorite;
+    // Инициализируем контроллеры начальными данными
     _titleController = TextEditingController(text: widget.cardItem.title);
     _barcodeDataController = TextEditingController(text: widget.cardItem.barcode_data);
     _selectedColor = _getCardColor(widget.cardItem.color);
+    _selectedType = widget.cardItem.barcode_type;
   }
 
   @override
@@ -64,28 +67,41 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
     }
   }
 
-  void _toggleFavorite() async {
-    final newStatus = !isFavorite;
-    setState(() => isFavorite = newStatus);
-    await database.cardsDao.updateFavoriteStatus(widget.cardItem.id, newStatus);
+  // Метод для отмены редактирования (возвращаем старые данные в UI)
+  void _cancelEditing() {
+    setState(() {
+      _titleController.text = widget.cardItem.title;
+      _barcodeDataController.text = widget.cardItem.barcode_data;
+      _selectedColor = _getCardColor(widget.cardItem.color);
+      _selectedType = widget.cardItem.barcode_type;
+      isEditing = false;
+    });
   }
 
-  // Сохранение изменений в базу данных
   void _saveChanges() async {
     final hexColor = '#${_selectedColor.value.toRadixString(16).substring(2)}';
     
+    // Обновляем в БД
     await (database.update(database.cards)..where((t) => t.id.equals(widget.cardItem.id))).write(
       CardsCompanion(
         title: drift.Value(_titleController.text),
         barcode_data: drift.Value(_barcodeDataController.text),
+        barcode_type: drift.Value(_selectedType),
         color: drift.Value(hexColor),
       ),
     );
 
-    setState(() => isEditing = false);
+    // Просто выключаем режим редактирования. 
+    // Теперь UI будет использовать актуальные значения из контроллеров.
+    setState(() {
+      isEditing = false;
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Изменения сохранены")),
+    );
   }
 
-  // Определение типа штрихкода для виджета
   Barcode _getBarcodeType(String dbType) {
     switch (dbType) {
       case 'EAN-13': return Barcode.ean13();
@@ -108,7 +124,6 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Шапка экрана
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -125,7 +140,7 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
 
                 const SizedBox(height: 30),
 
-                // Визуальное представление карты
+                // Карточка (всегда берем данные из контроллеров и переменных состояния)
                 Container(
                   width: double.infinity,
                   height: 200,
@@ -136,33 +151,22 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
                   ),
                   child: Stack(
                     children: [
-                      // Название карты сверху
                       Positioned(
                         top: 0,
                         left: 0,
                         child: Text(
-                          isEditing ? _titleController.text : widget.cardItem.title,
-                          style: const TextStyle(
-                            color: Colors.white, 
-                            fontSize: 24, 
-                            fontWeight: FontWeight.bold
-                          ),
+                          _titleController.text, // <--- ИСПОЛЬЗУЕМ КОНТРОЛЛЕР
+                          style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
                         ),
                       ),
-                      // Штрихкод в центре с обработкой ошибок
                       Center(
                         child: Container(
                           padding: const EdgeInsets.all(10),
                           constraints: const BoxConstraints(minHeight: 100, minWidth: 200),
-                          decoration: BoxDecoration(
-                            color: Colors.white, 
-                            borderRadius: BorderRadius.circular(12)
-                          ),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
                           child: BarcodeWidget(
-                            barcode: _getBarcodeType(widget.cardItem.barcode_type),
-                            data: isEditing 
-                                ? (_barcodeDataController.text.isEmpty ? " " : _barcodeDataController.text) 
-                                : widget.cardItem.barcode_data,
+                            barcode: _getBarcodeType(_selectedType), // <--- ИСПОЛЬЗУЕМ СОСТОЯНИЕ
+                            data: _barcodeDataController.text.isEmpty ? " " : _barcodeDataController.text, // <--- ИСПОЛЬЗУЕМ КОНТРОЛЛЕР
                             width: 200,
                             height: 80,
                             drawText: true,
@@ -175,11 +179,7 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
                                 Text(
                                   "неправильный формат кода",
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: Colors.red, 
-                                    fontSize: 11, 
-                                    fontWeight: FontWeight.bold
-                                  ),
+                                  style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold),
                                 ),
                               ],
                             ),
@@ -192,19 +192,22 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
 
                 const SizedBox(height: 20),
 
-                // Кнопки действий
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _buildIconButton(
                       isFavorite ? Icons.favorite : Icons.favorite_border, 
-                      _toggleFavorite, 
+                      () async {
+                        final newStatus = !isFavorite;
+                        setState(() => isFavorite = newStatus);
+                        await database.cardsDao.updateFavoriteStatus(widget.cardItem.id, newStatus);
+                      }, 
                       iconColor: mainIconColor
                     ),
                     _buildIconButton(Icons.reply, () {}, iconColor: mainIconColor),
                     _buildIconButton(
                       isEditing ? Icons.close : Icons.auto_fix_high, 
-                      () => setState(() => isEditing = !isEditing), 
+                      () => isEditing ? _cancelEditing() : setState(() => isEditing = true), 
                       iconColor: isEditing ? Colors.red : mainIconColor
                     ),
                   ],
@@ -212,43 +215,13 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
 
                 const SizedBox(height: 30),
 
-                // Поля ввода/просмотра
                 _buildEditableField("Название", _titleController, !isEditing),
-                
                 const SizedBox(height: 12),
                 
-                // Секция выбора цвета (видна только при редактировании)
                 if (isEditing) ...[
-                  const Padding(
-                    padding: EdgeInsets.only(left: 16, bottom: 8),
-                    child: Text("Цвет карты", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                  ),
-                  SizedBox(
-                    height: 50,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _availableColors.length,
-                      itemBuilder: (context, index) {
-                        final color = _availableColors[index];
-                        final isSelected = _selectedColor.value == color.value;
-                        return GestureDetector(
-                          onTap: () => setState(() => _selectedColor = color),
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 8),
-                            width: 45,
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
-                              border: isSelected ? Border.all(color: Colors.black, width: 3) : null,
-                            ),
-                            child: isSelected 
-                                ? const Icon(Icons.check, color: Colors.white, size: 24) 
-                                : null,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+                  _buildTypePicker(),
+                  const SizedBox(height: 12),
+                  _buildColorPicker(),
                   const SizedBox(height: 20),
                 ] else 
                   _buildStaticColorField(_selectedColor),
@@ -258,8 +231,6 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
               ],
             ),
           ),
-          
-          // Нижний переключатель навигации (скрывается при редактировании)
           if (!isEditing)
             Align(
               alignment: Alignment.bottomLeft,
@@ -277,7 +248,72 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
     );
   }
 
-  // Виджет поля, который меняется с текста на TextField
+  // --- Вспомогательные виджеты ---
+
+  Widget _buildTypePicker() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("Тип штрихкода", style: TextStyle(color: Colors.grey, fontSize: 12)),
+          DropdownButton<String>(
+            value: _selectedType,
+            isExpanded: true,
+            underline: const SizedBox(),
+            items: _barcodeTypes.map((String type) {
+              return DropdownMenuItem<String>(
+                value: type,
+                child: Text(type, style: const TextStyle(fontWeight: FontWeight.bold)),
+              );
+            }).toList(),
+            onChanged: (String? newValue) {
+              if (newValue != null) setState(() => _selectedType = newValue);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildColorPicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(left: 16, bottom: 8),
+          child: Text("Цвет карты", style: TextStyle(color: Colors.grey, fontSize: 12)),
+        ),
+        SizedBox(
+          height: 50,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _availableColors.length,
+            itemBuilder: (context, index) {
+              final color = _availableColors[index];
+              final isSelected = _selectedColor.value == color.value;
+              return GestureDetector(
+                onTap: () => setState(() => _selectedColor = color),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 8),
+                  width: 45,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: isSelected ? Border.all(color: Colors.black, width: 3) : null,
+                  ),
+                  child: isSelected ? const Icon(Icons.check, color: Colors.white) : null,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildEditableField(String title, TextEditingController controller, bool readOnly, {bool isCode = false}) {
     return Container(
       width: double.infinity,
@@ -289,26 +325,12 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
           Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
           const SizedBox(height: 4),
           readOnly 
-            ? Text(
-                controller.text, 
-                style: TextStyle(
-                  fontSize: isCode ? 18 : 20, 
-                  fontWeight: FontWeight.bold
-                )
-              )
+            ? Text(controller.text, style: TextStyle(fontSize: isCode ? 18 : 20, fontWeight: FontWeight.bold))
             : TextField(
                 controller: controller,
-                autofocus: false,
-                onChanged: (val) => setState(() {}), // Для живого обновления штрихкода
-                decoration: const InputDecoration(
-                  border: InputBorder.none, 
-                  isDense: true,
-                  contentPadding: EdgeInsets.zero,
-                ),
-                style: TextStyle(
-                  fontSize: isCode ? 18 : 20, 
-                  fontWeight: FontWeight.bold
-                ),
+                onChanged: (val) => setState(() {}),
+                decoration: const InputDecoration(border: InputBorder.none, isDense: true),
+                style: TextStyle(fontSize: isCode ? 18 : 20, fontWeight: FontWeight.bold),
               ),
         ],
       ),
@@ -324,16 +346,7 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
         children: [
           const Text("Цвет", style: TextStyle(color: Colors.grey, fontSize: 12)),
           const Spacer(),
-          Text(
-            "#${color.value.toRadixString(16).substring(2).toUpperCase()}",
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(width: 10),
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
+          Container(width: 24, height: 24, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         ],
       ),
     );
