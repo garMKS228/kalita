@@ -3,10 +3,15 @@ import 'package:go_router/go_router.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter_application_1/main.dart';
 import 'package:flutter_application_1/database/database.dart';
+// Исправлен путь импорта в соответствии с вашей структурой
+import 'package:flutter_application_1/widgets/ios_widgets.dart'; 
+import 'package:provider/provider.dart';
 
 class CreateWalletsPage extends StatefulWidget {
   final String title;
-  const CreateWalletsPage({super.key, required this.title});
+  final Wallet? wallet; // Добавляем возможность передать существующий кошелек
+
+  const CreateWalletsPage({super.key, required this.title, this.wallet});
 
   @override
   State<CreateWalletsPage> createState() => _CreateWalletsPageState();
@@ -15,131 +20,123 @@ class CreateWalletsPage extends StatefulWidget {
 class _CreateWalletsPageState extends State<CreateWalletsPage> {
   final _nameController = TextEditingController();
   
-  // Палитра цветов точь-в-точь как на твоем макете
   final List<Color> _colors = [
-    const Color(0xFFF44336), // Красный
-    const Color(0xFFE91E63), // Розовый
-    const Color(0xFF9C27B0), // Фиолетовый
-    const Color(0xFF673AB7), // Темно-фиолетовый
-    const Color(0xFF3F51B5), // Индиго
-    const Color(0xFF2196F3), // Синий 
-    const Color(0xFF009688), // Изумрудный
-    const Color(0xFF4CAF50), // Зеленый
-    const Color(0xFFFF9800), // Оранжевый
-    const Color(0xFF795548), // Коричневый
-    const Color(0xFF000000), // Черный
+    const Color(0xFFF44336),
+    const Color(0xFFE91E63),
+    const Color(0xFF9C27B0),
+    const Color(0xFF673AB7),
+    const Color(0xFF3F51B5),
+    const Color(0xFF2196F3),
+    const Color(0xFF009688),
+    const Color(0xFF4CAF50),
+    const Color(0xFFFF9800),
   ];
-  
+
   late Color _selectedColor;
 
   @override
   void initState() {
     super.initState();
-    // По умолчанию выбираем синий цвет
-    _selectedColor = _colors[5]; 
+    // Если мы редактируем, заполняем данные старого кошелька
+    if (widget.wallet != null) {
+      _nameController.text = widget.wallet!.name;
+      _selectedColor = Color(int.parse(widget.wallet!.color.replaceFirst('#', '0xff')));
+    } else {
+      _selectedColor = _colors[5]; // По умолчанию синий
+    }
   }
 
-  Future<void> _saveToDatabase() async {
-    if (_nameController.text.isEmpty) return;
+  // Основная логика сохранения/обновления
+  void _saveToDatabase() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) return;
 
-    // Надежно превращаем цвет в 6-значный HEX формат (например: #2196f3)
-    String colorHex = '#${_selectedColor.value.toRadixString(16).substring(2, 8)}';
+    final colorHex = '#${_selectedColor.value.toRadixString(16).padLeft(8, '0')}';
 
-    await database.walletsDao.insertWallet(
-      WalletsCompanion(
-        name: drift.Value(_nameController.text),
-        color: drift.Value(colorHex), // Отправляем цвет в базу!
-      ),
-    );
-    
-    if (mounted) context.pop();
+    if (widget.wallet == null) {
+      // СОЗДАНИЕ НОВОГО
+      final companion = WalletsCompanion(
+        name: drift.Value(name),
+        color: drift.Value(colorHex),
+      );
+      await database.walletsDao.insertWallet(companion);
+    } else {
+      // ОБНОВЛЕНИЕ СУЩЕСТВУЮЩЕГО (используем copyWith для сохранения id)
+      final updatedWallet = widget.wallet!.copyWith(
+        name: name,
+        color: colorHex,
+      );
+      await database.walletsDao.updateWallet(updatedWallet);
+    }
+
+    if (mounted) {
+      context.pop();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FC),
       appBar: AppBar(
+        title: Text(widget.title),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(widget.title, style: const TextStyle(color: Colors.black)),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             TextField(
               controller: _nameController,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: "Название кошелька",
-                fillColor: Colors.white,
-                filled: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: BorderSide.none,
-                ),
+                border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 30),
-            
-            const Text("Выберите цвет кошелька:", style: TextStyle(fontSize: 16)),
-            const SizedBox(height: 15),
-            
-            // Горизонтальная прокрутка цветов
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: _colors.map((color) {
-                  final isSelected = _selectedColor == color;
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _selectedColor = color; // Меняем активный цвет
-                      });
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 12),
-                      width: 45,
-                      height: 45,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                        border: isSelected 
-                            ? Border.all(color: Colors.black, width: 3) // Обводка если выбран
-                            : null,
-                      ),
-                      child: isSelected 
-                          ? const Icon(Icons.check, color: Colors.white, size: 24) 
+            const SizedBox(height: 20),
+            const Text("Выберите цвет:"),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              children: _colors.map((color) {
+                final isSelected = _selectedColor == color;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedColor = color),
+                  child: Container(
+                    width: 45,
+                    height: 45,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: isSelected 
+                          ? Border.all(color: Colors.black, width: 3) 
                           : null,
                     ),
-                  );
-                }).toList(),
-              ),
+                    child: isSelected 
+                        ? const Icon(Icons.check, color: Colors.white) 
+                        : null,
+                  ),
+                );
+              }).toList(),
             ),
-            
-            const SizedBox(height: 50),
-            
+            const Spacer(),
             Center(
               child: ElevatedButton(
                 onPressed: _saveToDatabase,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _selectedColor, // Кнопка подстраивается под выбранный цвет
+                  backgroundColor: _selectedColor, // Убрали const, чтобы не было ошибки
                   padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),
                 ),
-                child: const Text(
-                  "Создать кошелек", 
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                child: Text(
+                  widget.wallet == null ? "Создать кошелек" : "Сохранить изменения",
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
                 ),
               ),
-            )
+            ),
           ],
         ),
       ),

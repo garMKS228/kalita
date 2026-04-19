@@ -6,6 +6,7 @@ import './pages/wallets_pages/home_wallets.dart';
 import './pages/cards_pages/create_card.dart';
 import './pages/wallets_pages/create_wallets.dart';
 import './pages/cards_pages/cards.dart';
+import './pages/wallets_pages/wallets.dart';
 
 late AppDatabase database;
 
@@ -45,6 +46,14 @@ final GoRouter _router = GoRouter(
       path: '/home_wallets/create_wallets',
       builder: (context, state) => const CreateWalletsPage(title: 'Создание кошелька'), 
     ),
+    GoRoute(
+      path: '/home_wallets/wallets',
+      builder: (context, state) {
+        // Извлекаем объект кошелька из параметров перехода
+        final wallet = state.extra as Wallet; 
+        return WalletDetailsPage(wallet: wallet);
+      },
+    ),  
     GoRoute(
       path: '/home_cards/cards',
       builder: (context, state) {

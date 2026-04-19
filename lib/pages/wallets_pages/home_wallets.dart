@@ -115,6 +115,7 @@ class _HomeWalletsPageState extends State<HomeWalletsPage> {
                           children: [
                             GestureDetector(
                               onTap: () => setState(() => expandedWalletId = isExpanded ? null : wallet.id),
+                              onLongPress: () => context.push('/home_wallets/wallets', extra: wallet),
                               child: _buildWalletCard(wallet, isExpanded),
                             ),
                             if (isExpanded) _buildWalletDetails(wallet.id),
