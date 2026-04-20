@@ -1,9 +1,12 @@
+import 'dart:io';
+import 'package:pasteboard/pasteboard.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_application_1/database/database.dart';
 import 'package:flutter_application_1/main.dart';
 import 'package:flutter_application_1/widgets/ios_widgets.dart';
 import 'package:barcode_widget/barcode_widget.dart';
+import 'package:screenshot/screenshot.dart';
 import 'package:drift/drift.dart' as drift;
 
 bool walletsCardSwitch = true;
@@ -18,44 +21,31 @@ class CardDetailsPage extends StatefulWidget {
 
 class _CardDetailsPageState extends State<CardDetailsPage> {
   late bool isFavorite;
-  
   bool isEditing = false;
+  
   late TextEditingController _titleController;
   late TextEditingController _barcodeDataController;
   late Color _selectedColor;
   late String _selectedType;
 
-  final List<String> _barcodeTypes = ['QR Code', 'EAN-13', 'Code 128', 'UPC-A'];
-
+  // Исходный список цветов из вашего кода
   final List<Color> _availableColors = [
-    const Color(0xFF9276F6),
-    Colors.redAccent,
-    Colors.pinkAccent,
-    Colors.orangeAccent,
-    Colors.greenAccent,
-    Colors.blueAccent,
-    Colors.deepOrange,
-    Colors.teal,
-    Colors.blueGrey,
-    const Color(0xFF222222),
+    const Color(0xFFF44336), const Color(0xFFE91E63), const Color(0xFF9C27B0),
+    const Color(0xFF673AB7), const Color(0xFF3F51B5), const Color(0xFF2196F3),
+    const Color(0xFF009688), const Color(0xFF4CAF50), const Color(0xFFFF9800),
   ];
+
+  final List<String> _barcodeTypes = ['QR Code', 'EAN-13', 'Code 128', 'UPC-A'];
+  final ScreenshotController screenshotController = ScreenshotController();
 
   @override
   void initState() {
     super.initState();
     isFavorite = widget.cardItem.is_favorite;
-    // Инициализируем контроллеры начальными данными
     _titleController = TextEditingController(text: widget.cardItem.title);
     _barcodeDataController = TextEditingController(text: widget.cardItem.barcode_data);
     _selectedColor = _getCardColor(widget.cardItem.color);
     _selectedType = widget.cardItem.barcode_type;
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _barcodeDataController.dispose();
-    super.dispose();
   }
 
   Color _getCardColor(String? hex) {
@@ -67,43 +57,46 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
     }
   }
 
-  // Метод для отмены редактирования (возвращаем старые данные в UI)
+  void _saveChanges() async {
+    final updatedCard = widget.cardItem.copyWith(
+      title: _titleController.text,
+      barcode_data: _barcodeDataController.text,
+      barcode_type: _selectedType,
+      color: drift.Value('#${_selectedColor.value.toRadixString(16).substring(2)}'),
+    );
+    await database.update(database.cards).replace(updatedCard);
+    setState(() => isEditing = false);
+  }
+
   void _cancelEditing() {
     setState(() {
+      isEditing = false;
       _titleController.text = widget.cardItem.title;
       _barcodeDataController.text = widget.cardItem.barcode_data;
       _selectedColor = _getCardColor(widget.cardItem.color);
       _selectedType = widget.cardItem.barcode_type;
-      isEditing = false;
     });
   }
 
-  void _saveChanges() async {
-    final hexColor = '#${_selectedColor.value.toRadixString(16).substring(2)}';
-    
-    // Обновляем в БД
-    await (database.update(database.cards)..where((t) => t.id.equals(widget.cardItem.id))).write(
-      CardsCompanion(
-        title: drift.Value(_titleController.text),
-        barcode_data: drift.Value(_barcodeDataController.text),
-        barcode_type: drift.Value(_selectedType),
-        color: drift.Value(hexColor),
-      ),
-    );
-
-    // Просто выключаем режим редактирования. 
-    // Теперь UI будет использовать актуальные значения из контроллеров.
-    setState(() {
-      isEditing = false;
-    });
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Изменения сохранены")),
-    );
+  // Копирование штрихкода как КАРТИНКИ в буфер
+  Future<void> _copyBarcodeToClipboard() async {
+    final image = await screenshotController.capture();
+    if (image != null) {
+      await Pasteboard.writeImage(image);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Штрихкод скопирован в буфер обмена как изображение'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
-  Barcode _getBarcodeType(String dbType) {
-    switch (dbType) {
+  Barcode _getBarcodeType(String type) {
+    switch (type) {
+      case 'QR Code': return Barcode.qrCode();
       case 'EAN-13': return Barcode.ean13();
       case 'Code 128': return Barcode.code128();
       case 'UPC-A': return Barcode.upcA();
@@ -140,50 +133,45 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
 
                 const SizedBox(height: 30),
 
-                // Карточка (всегда берем данные из контроллеров и переменных состояния)
+                // Динамическая карточка без фиксированной высоты
                 Container(
                   width: double.infinity,
-                  height: 200,
                   padding: const EdgeInsets.all(25),
                   decoration: BoxDecoration(
                     color: _selectedColor,
                     borderRadius: BorderRadius.circular(24),
                   ),
-                  child: Stack(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        child: Text(
-                          _titleController.text, // <--- ИСПОЛЬЗУЕМ КОНТРОЛЛЕР
-                          style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                        ),
+                      Text(
+                        _titleController.text,
+                        style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
                       ),
+                      const SizedBox(height: 20),
                       Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          constraints: const BoxConstraints(minHeight: 100, minWidth: 200),
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                          child: BarcodeWidget(
-                            barcode: _getBarcodeType(_selectedType), // <--- ИСПОЛЬЗУЕМ СОСТОЯНИЕ
-                            data: _barcodeDataController.text.isEmpty ? " " : _barcodeDataController.text, // <--- ИСПОЛЬЗУЕМ КОНТРОЛЛЕР
-                            width: 200,
-                            height: 80,
-                            drawText: true,
-                            errorBuilder: (context, error) => const Column(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.close, color: Colors.red, size: 40),
-                                SizedBox(height: 4),
-                                Text(
-                                  "неправильный формат кода",
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Screenshot(
+                              controller: screenshotController,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                              ],
+                                padding: const EdgeInsets.all(15),
+                                child: BarcodeWidget(
+                                  barcode: _getBarcodeType(_selectedType),
+                                  data: _barcodeDataController.text.isEmpty ? " " : _barcodeDataController.text,
+                                  width: 250,
+                                  height: 90,
+                                  style: const TextStyle(color: Colors.black),
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 10),
+                          ],
                         ),
                       ),
                     ],
@@ -192,6 +180,7 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
 
                 const SizedBox(height: 20),
 
+                // Три кнопки в ряд: Избранное, Копировать, Редактировать
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
@@ -204,7 +193,7 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
                       }, 
                       iconColor: mainIconColor
                     ),
-                    _buildIconButton(Icons.reply, () {}, iconColor: mainIconColor),
+                    _buildIconButton(Icons.copy, _copyBarcodeToClipboard, iconColor: mainIconColor),
                     _buildIconButton(
                       isEditing ? Icons.close : Icons.auto_fix_high, 
                       () => isEditing ? _cancelEditing() : setState(() => isEditing = true), 
@@ -248,73 +237,53 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
     );
   }
 
-  // --- Вспомогательные виджеты ---
-
   Widget _buildTypePicker() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("Тип штрихкода", style: TextStyle(color: Colors.grey, fontSize: 12)),
-          DropdownButton<String>(
-            value: _selectedType,
-            isExpanded: true,
-            underline: const SizedBox(),
-            items: _barcodeTypes.map((String type) {
-              return DropdownMenuItem<String>(
-                value: type,
-                child: Text(type, style: const TextStyle(fontWeight: FontWeight.bold)),
-              );
-            }).toList(),
-            onChanged: (String? newValue) {
-              if (newValue != null) setState(() => _selectedType = newValue);
-            },
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedType,
+          isExpanded: true,
+          items: _barcodeTypes.map((String type) {
+            return DropdownMenuItem<String>(value: type, child: Text(type));
+          }).toList(),
+          onChanged: (String? newValue) {
+            if (newValue != null) {
+              setState(() => _selectedType = newValue);
+            }
+          },
+        ),
       ),
     );
   }
 
   Widget _buildColorPicker() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.only(left: 16, bottom: 8),
-          child: Text("Цвет карты", style: TextStyle(color: Colors.grey, fontSize: 12)),
-        ),
-        SizedBox(
-          height: 50,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: _availableColors.length,
-            itemBuilder: (context, index) {
-              final color = _availableColors[index];
-              final isSelected = _selectedColor.value == color.value;
-              return GestureDetector(
-                onTap: () => setState(() => _selectedColor = color),
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 8),
-                  width: 45,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                    border: isSelected ? Border.all(color: Colors.black, width: 3) : null,
-                  ),
-                  child: isSelected ? const Icon(Icons.check, color: Colors.white) : null,
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+    return SizedBox(
+      height: 50,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: _availableColors.length,
+        itemBuilder: (context, index) {
+          final color = _availableColors[index];
+          return GestureDetector(
+            onTap: () => setState(() => _selectedColor = color),
+            child: Container(
+              margin: const EdgeInsets.only(right: 12),
+              width: 45,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: _selectedColor == color ? Border.all(color: Colors.black, width: 2.5) : null,
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildEditableField(String title, TextEditingController controller, bool readOnly, {bool isCode = false}) {
+  Widget _buildEditableField(String label, TextEditingController controller, bool readOnly, {bool isCode = false}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -322,16 +291,19 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
           const SizedBox(height: 4),
-          readOnly 
-            ? Text(controller.text, style: TextStyle(fontSize: isCode ? 18 : 20, fontWeight: FontWeight.bold))
-            : TextField(
-                controller: controller,
-                onChanged: (val) => setState(() {}),
-                decoration: const InputDecoration(border: InputBorder.none, isDense: true),
-                style: TextStyle(fontSize: isCode ? 18 : 20, fontWeight: FontWeight.bold),
-              ),
+          TextField(
+            controller: controller,
+            readOnly: readOnly,
+            onChanged: (value) => setState(() {}),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+            style: TextStyle(fontSize: isCode ? 18 : 20, fontWeight: FontWeight.bold),
+          ),
         ],
       ),
     );
@@ -346,7 +318,11 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
         children: [
           const Text("Цвет", style: TextStyle(color: Colors.grey, fontSize: 12)),
           const Spacer(),
-          Container(width: 24, height: 24, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
         ],
       ),
     );
@@ -357,8 +333,8 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-        child: Icon(icon, color: iconColor, size: 28),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+        child: Icon(icon, color: iconColor, size: 24),
       ),
     );
   }
