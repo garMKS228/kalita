@@ -57,6 +57,33 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
     }
   }
 
+  void _deleteCard() async {
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Удалить карту?"),
+        content: const Text("Вы уверены, что хотите удалить эту карту?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Отмена"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Удалить", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await database.cardsDao.deleteCard(widget.cardItem);
+      if (mounted) {
+        context.pop(); // Возврат на список карт
+      }
+    }
+  }
+  
   void _saveChanges() async {
     final updatedCard = widget.cardItem.copyWith(
       title: _titleController.text,
@@ -67,6 +94,7 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
     await database.update(database.cards).replace(updatedCard);
     setState(() => isEditing = false);
   }
+  
 
   void _cancelEditing() {
     setState(() {
@@ -198,6 +226,11 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
                       isEditing ? Icons.close : Icons.auto_fix_high, 
                       () => isEditing ? _cancelEditing() : setState(() => isEditing = true), 
                       iconColor: isEditing ? Colors.red : mainIconColor
+                    ),
+                    _buildIconButton(
+                      Icons.delete_outline, 
+                      _deleteCard, 
+                      iconColor: Colors.red
                     ),
                   ],
                 ),
