@@ -7,11 +7,27 @@ import './pages/cards_pages/create_card.dart';
 import './pages/wallets_pages/create_wallets.dart';
 import './pages/cards_pages/cards.dart';
 import './pages/wallets_pages/wallets.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import './pages/auth_pages/login.dart';
+import './pages/auth_pages/register.dart';
+import 'firebase_options.dart';
+import 'package:flutter_application_1/pages/settings_pages/settings.dart';
 
 late AppDatabase database;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print("Firebase успешно инициализирован!");
+  } catch (e) {
+    print("Ошибка инициализации Firebase: $e");
+  }
+
   database = AppDatabase();
   
   try {
@@ -25,7 +41,43 @@ void main() async {
 
 final GoRouter _router = GoRouter(
   initialLocation: '/home_cards', 
+  
+  // НОВАЯ ЛОГИКА ЗАЩИТЫ РОУТОВ
+  redirect: (context, state) {
+    final user = FirebaseAuth.instance.currentUser;
+    final isLoggingIn = state.matchedLocation == '/login';
+    final isRegistering = state.matchedLocation == '/register';
+
+    // Если нет юзера и он не на страницах входа/регистрации -> выкидываем на логин
+    if (user == null && !isLoggingIn && !isRegistering) {
+      return '/login';
+    }
+    
+    // Если юзер есть, но он зачем-то пошел на логин -> отправляем домой
+    if (user != null && (isLoggingIn || isRegistering)) {
+      return '/home_cards';
+    }
+    
+    return null;
+  },
+  
   routes: [
+    GoRoute(
+      path: '/login',
+      builder: (context, state) => const LoginPage(), // Убедись, что LoginPage импортирован
+    ),
+    GoRoute(
+      path: '/settings',
+      builder: (context, state) => const SettingsPage(),
+    ),
+    GoRoute(
+      path: '/login',
+      builder: (context, state) => const LoginPage(),
+    ),
+    GoRoute(
+      path: '/register',
+      builder: (context, state) => const RegisterPage(),
+    ),
     GoRoute(
       path: '/home_cards',
       builder: (context, state) => const HomeCardsPage(title: 'Мои Карты'), 

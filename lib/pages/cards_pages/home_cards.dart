@@ -17,7 +17,6 @@ class HomeCardsPage extends StatefulWidget {
 
 class _HomeCardsPageState extends State<HomeCardsPage> {
   
-  // Вспомогательная функция для конвертации HEX-строки из БД в объект Color
   Color _getCardColor(String? hex) {
     if (hex == null || hex.isEmpty) return Colors.blueAccent;
     try {
@@ -35,36 +34,24 @@ class _HomeCardsPageState extends State<HomeCardsPage> {
         children: [
           // 1. ОСНОВНОЙ КОНТЕНТ
           SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 60, 20, 100),
+            padding: const EdgeInsets.fromLTRB(20, 120, 20, 100),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Заголовок
                 const Text(
                   "Мои карты",
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black),
                 ),
                 const SizedBox(height: 20),
-
-                // Стрим с данными из таблицы Cards
+                
                 StreamBuilder<List<CardEntry>>(
                   stream: database.cardsDao.watchAllCards(),
                   builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
+                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                     
                     final cards = snapshot.data!;
-                    
                     if (cards.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.only(top: 50),
-                        child: Center(child: Text("Список карт пуст")),
-                      );
+                      return const Center(child: Text("Карт пока нет"));
                     }
 
                     return ListView.separated(
@@ -83,7 +70,7 @@ class _HomeCardsPageState extends State<HomeCardsPage> {
             ),
           ),
 
-          // 2. КНОПКА ДОБАВЛЕНИЯ (Floating Action Button)
+          // 2. КНОПКА ДОБАВЛЕНИЯ
           Positioned(
             bottom: 16,
             right: 16,
@@ -93,7 +80,7 @@ class _HomeCardsPageState extends State<HomeCardsPage> {
             ),
           ),
 
-          // 3. IOS SWITCH (Навигация)
+          // 3. IOS NAVIGATION SWITCH
           Align(
             alignment: Alignment.bottomLeft,
             child: Padding(
@@ -103,10 +90,29 @@ class _HomeCardsPageState extends State<HomeCardsPage> {
                 value: walletsCardSwitch,
                 onChanged: (bool val) {
                   setState(() {
-                    walletsCardSwitch = !val;
+                    walletsCardSwitch = val;
                   });
                 },
               ),
+            ),
+          ),
+
+          // 4. ВЕРХНИЕ КНОПКИ (ПРОФИЛЬ И ПОИСК)
+          Positioned(
+            top: 50,
+            left: 20,
+            right: 20,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildTopButton(Icons.account_circle, () {
+                  // ПЕРЕХОД ЧЕРЕЗ GO ROUTER
+                  context.push('/settings');
+                }),
+                _buildTopButton(Icons.search, () {
+                  // Логика поиска
+                }),
+              ],
             ),
           ),
         ],
@@ -114,10 +120,24 @@ class _HomeCardsPageState extends State<HomeCardsPage> {
     );
   }
 
-  // Виджет отдельной карточки в списке
+  // Виджет круглой кнопки сверху
+  Widget _buildTopButton(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.black, size: 28),
+      ),
+    );
+  }
+
   Widget _buildCardItem(CardEntry card) {
     final Color cardColor = _getCardColor(card.color);
-    
+
     return GestureDetector(
       onTap: () => context.push("/home_cards/cards", extra: card),
       child: Container(
@@ -136,35 +156,26 @@ class _HomeCardsPageState extends State<HomeCardsPage> {
         ),
         child: Row(
           children: [
-            // Иконка категории или просто иконка карты
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: Colors.white.withOpacity(0.2),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.credit_card, color: Colors.white),
             ),
             const SizedBox(width: 16),
-            // Текстовая информация
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     card.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   Text(
                     card.barcode_type,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
                   ),
                 ],
               ),

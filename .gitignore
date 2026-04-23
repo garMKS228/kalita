@@ -43,3 +43,21 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# --- FIREBASE SECRETS ---
+# Конфигурации для Android и iOS
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+
+# Главный файл настроек Flutter-Firebase
+lib/firebase_options.dart
+
+# --- OTHER SECRETS ---
+# Файлы переменных окружения (если есть)
+.env
+*.env
+
+# Ключи подписи приложения
+android/key.properties
+*.keystore
+*.jks

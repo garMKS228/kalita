@@ -3,6 +3,7 @@ import 'package:flutter_application_1/widgets/ios_widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_application_1/main.dart'; 
 import 'package:flutter_application_1/database/database.dart';
+import 'package:flutter_application_1/pages/settings_pages/settings.dart';
 
 class HomeWalletsPage extends StatefulWidget {
   const HomeWalletsPage({super.key, required this.title});
@@ -150,6 +151,24 @@ class _HomeWalletsPageState extends State<HomeWalletsPage> {
               ),
             ),
           ),
+          // 4. КНОПКИ ВВЕРХУ
+          Positioned(
+            top: 50,
+            left: 20,
+            right: 20,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                // Вот эта кнопка:
+                _buildTopButton(Icons.account_circle, () {
+                  context.push('/settings'); // Вместо длинного Navigator.push
+                }),
+                _buildTopButton(Icons.search, () {
+                // Поиск
+                }),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -244,13 +263,16 @@ class _HomeWalletsPageState extends State<HomeWalletsPage> {
   }
 
   Widget _buildTopButton(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-        child: Icon(icon, color: Colors.black),
+  return GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.all(12),
+      decoration: const BoxDecoration(
+        color: Colors.white, 
+        shape: BoxShape.circle
       ),
-    );
-  }
+      child: Icon(icon, color: Colors.black, size: 28),
+    ),
+  );
+}
 }
