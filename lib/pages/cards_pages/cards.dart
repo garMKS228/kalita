@@ -27,6 +27,7 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
   late TextEditingController _barcodeDataController;
   late Color _selectedColor;
   late String _selectedType;
+  bool _isQrFixed = false;
 
   // Исходный список цветов из вашего кода
   final List<Color> _availableColors = [
@@ -35,7 +36,7 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
     const Color(0xFF009688), const Color(0xFF4CAF50), const Color(0xFFFF9800),
   ];
 
-  final List<String> _barcodeTypes = ['QR Code', 'EAN-13', 'Code 128', 'UPC-A'];
+  final List<String> _barcodeTypes = ['QR Code', 'EAN-13', 'EAN-8'];
   final ScreenshotController screenshotController = ScreenshotController();
 
   @override
@@ -46,6 +47,8 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
     _barcodeDataController = TextEditingController(text: widget.cardItem.barcode_data);
     _selectedColor = _getCardColor(widget.cardItem.color);
     _selectedType = widget.cardItem.barcode_type;
+    _isQrFixed = _selectedType == 'QR Code'; // Если карта уже QR, включаем фиксацию
+    isFavorite = widget.cardItem.is_favorite;
   }
 
   Color _getCardColor(String? hex) {
@@ -85,15 +88,44 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
   }
   
   void _saveChanges() async {
-    final updatedCard = widget.cardItem.copyWith(
-      title: _titleController.text,
-      barcode_data: _barcodeDataController.text,
-      barcode_type: _selectedType,
-      color: drift.Value('#${_selectedColor.value.toRadixString(16).substring(2)}'),
-    );
-    await database.update(database.cards).replace(updatedCard);
-    setState(() => isEditing = false);
-  }
+    final value = _barcodeDataController.text;
+
+    // Логика валидации
+    if (value.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Данные кода не могут быть пустыми')),
+      );
+      return;
+    }
+
+    // Если фиксация QR выключена (авторежим), проверяем на 8 или 13 цифр
+    if (!_isQrFixed) {
+      bool isDigits = RegExp(r'^\d+$').hasMatch(value);
+      if (!isDigits) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('В авторежиме разрешены только цифры')),
+        );
+        return;
+      }
+      if (value.length != 8 && value.length != 13) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Введите ровно 8 или 13 цифр (или включите QR)')),
+        );
+        return;
+      }
+    }
+
+  // Если проверки пройдены, сохраняем
+  final updatedCard = widget.cardItem.copyWith(
+    title: _titleController.text,
+    barcode_data: value,
+    barcode_type: _selectedType,
+    color: drift.Value('#${_selectedColor.value.toRadixString(16).substring(2)}'),
+  );
+
+  await database.update(database.cards).replace(updatedCard);
+  setState(() => isEditing = false);
+}
   
 
   void _cancelEditing() {
@@ -126,8 +158,7 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
     switch (type) {
       case 'QR Code': return Barcode.qrCode();
       case 'EAN-13': return Barcode.ean13();
-      case 'Code 128': return Barcode.code128();
-      case 'UPC-A': return Barcode.upcA();
+      case 'EAN-8': return Barcode.ean8();
       default: return Barcode.qrCode();
     }
   }
@@ -181,23 +212,26 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Screenshot(
-                              controller: screenshotController,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                padding: const EdgeInsets.all(15),
-                                child: BarcodeWidget(
-                                  barcode: _getBarcodeType(_selectedType),
-                                  data: _barcodeDataController.text.isEmpty ? " " : _barcodeDataController.text,
-                                  width: 250,
-                                  height: 90,
-                                  style: const TextStyle(color: Colors.black),
+                            GestureDetector(
+                              onTap: _showFullScreenBarcode, // Нажатие открывает во весь экран
+                              child: Screenshot(
+                                controller: screenshotController,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.all(15),
+                                  child: BarcodeWidget(
+                                    barcode: _getBarcodeType(_selectedType),
+                                    data: _barcodeDataController.text.isEmpty ? " " : _barcodeDataController.text,
+                                    width: 250,
+                                    height: 90,
+                                    style: const TextStyle(color: Colors.black),
+                                  ),
                                 ),
                               ),
-                            ),
+                              ),
                             const SizedBox(height: 10),
                           ],
                         ),
@@ -239,16 +273,52 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
 
                 _buildEditableField("Название", _titleController, !isEditing),
                 const SizedBox(height: 12),
-                
-                if (isEditing) ...[
-                  _buildTypePicker(),
-                  const SizedBox(height: 12),
-                  _buildColorPicker(),
-                  const SizedBox(height: 20),
-                ] else 
-                  _buildStaticColorField(_selectedColor),
 
-                const SizedBox(height: 12),
+                if (isEditing) ...[
+                  // Кнопка фиксации QR 
+                  Text(
+                    "Тип кода: ${_isQrFixed ? 'QR Code' : 'Автоматически ($_selectedType)'}",
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _isQrFixed = !_isQrFixed;
+                        _handleTypeUpdate(_barcodeDataController.text);
+                      });
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: _isQrFixed ? Colors.black : Colors.white,
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: _isQrFixed ? Colors.black : Colors.grey.shade300),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.qr_code, color: _isQrFixed ? Colors.white : Colors.black, size: 20),
+                          const SizedBox(width: 10),
+                          Text(
+                            "QR Code",
+                            style: TextStyle(
+                              color: _isQrFixed ? Colors.white : Colors.black,
+                              fontWeight: _isQrFixed ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildColorPicker(), // Оставляем выбор цвета в режиме редактирования
+                  const SizedBox(height: 12),
+                ] else ...[
+                  _buildStaticColorField(_selectedColor), // Показываем цвет в обычном режиме
+                  const SizedBox(height: 12),
+                ],
                 _buildEditableField("Данные кода", _barcodeDataController, !isEditing, isCode: true),
               ],
             ),
@@ -268,6 +338,70 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
         ],
       ),
     );
+  }
+
+  void _showFullScreenBarcode() {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: "Close",
+      barrierColor: Colors.black.withOpacity(0.9), // Глубокий темный фон
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, anim1, anim2) {
+        return GestureDetector(
+          onTap: () => Navigator.pop(context), // Закрыть при тапе в любое место
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: Center(
+              child: Container(
+                padding: const EdgeInsets.all(25),
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _titleController.text,
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 20),
+                    BarcodeWidget(
+                      barcode: _getBarcodeType(_selectedType),
+                      data: _barcodeDataController.text.isEmpty ? " " : _barcodeDataController.text,
+                      width: MediaQuery.of(context).size.width * 0.8,
+                      height: MediaQuery.of(context).size.height * 0.3,
+                      drawText: true,
+                      style: const TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text("Нажмите, чтобы закрыть", style: TextStyle(color: Colors.grey)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _handleTypeUpdate(String value) {
+    if (_isQrFixed) {
+      setState(() => _selectedType = 'QR Code');
+      return;
+    }
+
+    setState(() {
+      // Авто-определение: 8 цифр -> EAN-8, иначе EAN-13
+      if (value.length == 8 && RegExp(r'^\d+$').hasMatch(value)) {
+        _selectedType = 'EAN-8';
+      } else {
+        _selectedType = 'EAN-13';
+      }
+    });
   }
 
   Widget _buildTypePicker() {
@@ -329,7 +463,11 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
           TextField(
             controller: controller,
             readOnly: readOnly,
-            onChanged: (value) => setState(() {}),
+            // ИЗМЕНЕНИЯ ЗДЕСЬ:
+            onChanged: (value) {
+              if (isCode) _handleTypeUpdate(value); // Запускаем проверку длины (8 или 13 цифр)
+              setState(() {}); // Перерисовываем экран
+            },
             decoration: const InputDecoration(
               border: InputBorder.none,
               isDense: true,

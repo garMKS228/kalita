@@ -17,12 +17,12 @@ class CardsDao extends DatabaseAccessor<AppDatabase> with _$CardsDaoMixin {
     return (select(cards)..where((i) => i.id.equals(id))).getSingle();
   }
 
-  // НОВОЕ: Получить все карты, которые не привязаны ни к одному кошельку
+  
   Future<List<CardEntry>> getFreeCards() {
     return (select(cards)..where((t) => t.wallet_id.isNull())).get();
   }
 
-  // НОВОЕ: Привязать существующую карту к кошельку
+  
   Future bindCardToWallet(int cardId, int walletId) {
     return (update(cards)..where((t) => t.id.equals(cardId))).write(
       CardsCompanion(wallet_id: Value(walletId)),

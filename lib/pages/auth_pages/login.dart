@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/firebase_sync_service.dart';
+import 'package:provider/provider.dart';
+import '../../database/database.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -12,14 +15,8 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _syncService = FirebaseSyncService();
   bool _isLoading = false;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
 
   Future<void> _login() async {
     final email = _emailController.text.trim();
@@ -33,19 +30,26 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
-      if (mounted) context.go('/home_cards');
-    } on FirebaseAuthException catch (e) {
-      String message = "Ошибка входа";
-      if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
-        message = "Неверный Email или пароль.";
+
+      // Проверка подтверждения почты
+      if (userCredential.user != null && !userCredential.user!.emailVerified) {
+        await FirebaseAuth.instance.signOut();
+        _showError("Пожалуйста, подтвердите Email перед входом.");
+        return;
       }
-      _showError(message);
-    } catch (e) {
-      _showError(e.toString());
+
+      // Если почта подтверждена — восстанавливаем данные из Firebase в Drift
+      //final db = Provider.of<AppDatabase>(context, listen: false);
+      //await _syncService.restoreDataFromCloud(db);
+
+      if (mounted) context.go('/home_cards');
+      
+    } on FirebaseAuthException catch (e) {
+      _showError("Неверный Email или пароль");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -59,53 +63,34 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF9276F6); 
-
+    const primaryColor = Color(0xFF9276F6);
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FC),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 60),
               const Text("С возвращением!", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              const Text("Войдите, чтобы получить доступ к вашим картам", style: TextStyle(fontSize: 16, color: Colors.grey)),
               const SizedBox(height: 40),
-
               _buildTextField(controller: _emailController, hint: "Email", icon: Icons.email_outlined),
               const SizedBox(height: 16),
               _buildTextField(controller: _passwordController, hint: "Пароль", icon: Icons.lock_outline, isPassword: true),
               const SizedBox(height: 40),
-
               SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _login,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    elevation: 0,
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text("Войти", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                  style: ElevatedButton.styleFrom(backgroundColor: primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+                  child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("Войти", style: TextStyle(color: Colors.white, fontSize: 18)),
                 ),
               ),
               const SizedBox(height: 24),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text("Нет аккаунта? ", style: TextStyle(color: Colors.grey, fontSize: 16)),
-                  GestureDetector(
-                    onTap: () => context.push('/register'),
-                    child: const Text("Создать", style: TextStyle(color: primaryColor, fontSize: 16, fontWeight: FontWeight.bold)),
-                  ),
-                ],
+              TextButton(
+                onPressed: () => context.push('/register'),
+                child: const Text("Нет аккаунта? Создать", style: TextStyle(color: primaryColor)),
               ),
             ],
           ),

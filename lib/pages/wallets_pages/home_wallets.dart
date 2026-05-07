@@ -77,59 +77,84 @@ class _HomeWalletsPageState extends State<HomeWalletsPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FC),
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 60, 16, 120),
-            child: Column(
-              children: [
-                Row(
+  bool _isSearching = false;
+  String _searchQuery = "";
+  final TextEditingController _searchController = TextEditingController();
+
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    backgroundColor: const Color(0xFFF7F8FC),
+    body: Stack(
+      children: [
+        SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 120, 16, 120), // Увеличил отступ сверху
+          child: Column(
+            children: [
+              StreamBuilder<List<Wallet>>(
+                stream: database.walletsDao.watchAllWallets(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                  
+                  // ФИЛЬТРАЦИЯ ПО ПОИСКУ
+                  final wallets = snapshot.data!.where((w) {
+                    return w.name.toLowerCase().contains(_searchQuery.toLowerCase());
+                  }).toList();
+
+                  // СОРТИРОВКА (ИЗБРАННОЕ ВСЕГДА ВВЕРХУ)
+                  wallets.sort((a, b) {
+                    if (a.name == 'Избранное') return -1;
+                    if (b.name == 'Избранное') return 1;
+                    return 0;
+                  });
+
+                  if (wallets.isEmpty) return const Center(child: Text("Ничего не найдено"));
+
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: wallets.length,
+                    itemBuilder: (context, index) {
+                      final wallet = wallets[index];
+                      final isExpanded = expandedWalletId == wallet.id;
+                      return Column(
+                        children: [
+                          GestureDetector(
+                            onTap: () => setState(() => expandedWalletId = isExpanded ? null : wallet.id),
+                            onLongPress: () => context.push('/home_wallets/wallets', extra: wallet),
+                            child: _buildWalletCard(wallet, isExpanded),
+                          ),
+                          if (isExpanded) _buildWalletDetails(wallet),
+                          const SizedBox(height: 16),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+
+        // ВЕРХНЯЯ ПАНЕЛЬ С ПОИСКОМ
+        Positioned(
+          top: 50,
+          left: 20,
+          right: 20,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: _isSearching 
+              ? _buildSearchField() 
+              : Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildTopButton(Icons.arrow_back, () => context.go('/home_cards')),
+                    _buildTopButton(Icons.account_circle, () => context.push('/settings')),
                     const Text("Мои Кошельки", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    _buildTopButton(Icons.search, () {}),
+                    _buildTopButton(Icons.search, () => setState(() => _isSearching = true)),
                   ],
                 ),
-                const SizedBox(height: 25),
-                
-                StreamBuilder<List<Wallet>>(
-                  stream: database.walletsDao.watchAllWallets(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                    final wallets = snapshot.data!;
-                    if (wallets.isEmpty) return const Center(child: Text("Нет кошельков"));
-
-                    return ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: wallets.length,
-                      itemBuilder: (context, index) {
-                        final wallet = wallets[index];
-                        final isExpanded = expandedWalletId == wallet.id;
-
-                        return Column(
-                          children: [
-                            GestureDetector(
-                              onTap: () => setState(() => expandedWalletId = isExpanded ? null : wallet.id),
-                              onLongPress: () => context.push('/home_wallets/wallets', extra: wallet),
-                              child: _buildWalletCard(wallet, isExpanded),
-                            ),
-                            if (isExpanded) _buildWalletDetails(wallet.id),
-                            const SizedBox(height: 16), // Отступ между кошельками
-                          ],
-                        );
-                      },
-                    );
-                  },
-                ),
-              ],
-            ),
           ),
+        ),
           
           Positioned(
             bottom: 16,
@@ -151,27 +176,39 @@ class _HomeWalletsPageState extends State<HomeWalletsPage> {
               ),
             ),
           ),
-          // 4. КНОПКИ ВВЕРХУ
-          Positioned(
-            top: 50,
-            left: 20,
-            right: 20,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                // Вот эта кнопка:
-                _buildTopButton(Icons.account_circle, () {
-                  context.push('/settings'); // Вместо длинного Navigator.push
-                }),
-                _buildTopButton(Icons.search, () {
-                // Поиск
-                }),
-                ],
-              ),
-            ),
+         
         ],
       ),
     );
+  }
+  Widget _buildSearchField() {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 15),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(30),
+      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)],
+    ),
+    child: TextField(
+      controller: _searchController,
+      autofocus: true,
+      decoration: InputDecoration(
+        hintText: "Поиск кошелька...",
+        border: InputBorder.none,
+        suffixIcon: IconButton(
+          icon: const Icon(Icons.close, color: Colors.black),
+          onPressed: () {
+            setState(() {
+              _isSearching = false;
+              _searchQuery = "";
+              _searchController.clear();
+            });
+          },
+        ),
+      ),
+      onChanged: (value) => setState(() => _searchQuery = value),
+    ),
+  );
   }
 
   Widget _buildWalletCard(Wallet wallet, bool isExpanded) {
@@ -210,7 +247,9 @@ class _HomeWalletsPageState extends State<HomeWalletsPage> {
   }
 
   // Детали внутри кошелька: Кнопки и список его карт
-  Widget _buildWalletDetails(int walletId) {
+ Widget _buildWalletDetails(Wallet wallet) { // <-- принимаем Wallet, а не int
+    final isFavoriteWallet = wallet.name.toLowerCase() == 'избранное';
+
     return Container(
       margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.all(16),
@@ -220,31 +259,39 @@ class _HomeWalletsPageState extends State<HomeWalletsPage> {
       ),
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              TextButton.icon(
-                onPressed: () => context.push('/home_cards/create_cards', extra: walletId),
-                icon: const Icon(Icons.add, color: Colors.black),
-                label: const Text("Создать", style: TextStyle(color: Colors.black)),
-              ),
-              TextButton.icon(
-                onPressed: () => _showBindCardDialog(walletId),
-                icon: const Icon(Icons.link, color: Colors.black),
-                label: const Text("Привязать", style: TextStyle(color: Colors.black)),
-              ),
-            ],
-          ),
-          const Divider(),
+          // Прячем кнопки ручного добавления, если это Избранное
+          if (!isFavoriteWallet)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                TextButton.icon(
+                  onPressed: () => context.push('/home_cards/create_cards', extra: wallet.id),
+                  icon: const Icon(Icons.add, color: Colors.black),
+                  label: const Text("Создать", style: TextStyle(color: Colors.black)),
+                ),
+                TextButton.icon(
+                  onPressed: () => _showBindCardDialog(wallet.id),
+                  icon: const Icon(Icons.link, color: Colors.black),
+                  label: const Text("Привязать", style: TextStyle(color: Colors.black)),
+                ),
+              ],
+            ),
+          if (!isFavoriteWallet) const Divider(),
+          
           StreamBuilder<List<CardEntry>>(
-            // Получаем карты именно для этого кошелька
-            stream: (database.select(database.cards)..where((t) => t.wallet_id.equals(walletId))).watch(),
+            // УМНЫЙ ПОИСК: Если Избранное — ищем по сердечку. Иначе — по ID кошелька.
+            stream: isFavoriteWallet 
+              ? (database.select(database.cards)..where((t) => t.is_favorite.equals(true))).watch()
+              : (database.select(database.cards)..where((t) => t.wallet_id.equals(wallet.id))).watch(),
             builder: (context, snapshot) {
               final cards = snapshot.data ?? [];
               if (cards.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text("В этом кошельке пока нет карт", style: TextStyle(color: Colors.grey)),
+                return Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    isFavoriteWallet ? "У вас пока нет избранных карт" : "В этом кошельке пока нет карт", 
+                    style: const TextStyle(color: Colors.grey)
+                  ),
                 );
               }
               return Column(

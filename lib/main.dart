@@ -42,23 +42,26 @@ void main() async {
 final GoRouter _router = GoRouter(
   initialLocation: '/home_cards', 
   
-  // НОВАЯ ЛОГИКА ЗАЩИТЫ РОУТОВ
   redirect: (context, state) {
     final user = FirebaseAuth.instance.currentUser;
-    final isLoggingIn = state.matchedLocation == '/login';
-    final isRegistering = state.matchedLocation == '/register';
+    
+    // Проверяем: залогинен ли и подтверждена ли почта
+    final bool isAuthenticated = user != null && user.emailVerified;
+    
+    final bool isLoggingIn = state.matchedLocation == '/login';
+    final bool isRegistering = state.matchedLocation == '/register';
 
-    // Если нет юзера и он не на страницах входа/регистрации -> выкидываем на логин
-    if (user == null && !isLoggingIn && !isRegistering) {
+    // 1. Если не авторизован и не на страницах входа/регистрации -> на логин
+    if (!isAuthenticated && !isLoggingIn && !isRegistering) {
       return '/login';
     }
     
-    // Если юзер есть, но он зачем-то пошел на логин -> отправляем домой
-    if (user != null && (isLoggingIn || isRegistering)) {
+    // 2. Если авторизован, но пытается зайти на страницы входа -> домой
+    if (isAuthenticated && (isLoggingIn || isRegistering)) {
       return '/home_cards';
     }
     
-    return null;
+    return null; // В остальных случаях идем куда шли
   },
   
   routes: [

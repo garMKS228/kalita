@@ -7,6 +7,7 @@ import 'package:flutter_application_1/database/database.dart';
 // Глобальная переменная для управления состоянием свитча
 bool walletsCardSwitch = true;
 
+
 class HomeCardsPage extends StatefulWidget {
   const HomeCardsPage({super.key, required this.title});
   final String title;
@@ -26,49 +27,70 @@ class _HomeCardsPageState extends State<HomeCardsPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FC),
-      body: Stack(
-        children: [
-          // 1. ОСНОВНОЙ КОНТЕНТ
-          SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 120, 20, 100),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+  bool _isSearching = false;
+String _searchQuery = "";
+final TextEditingController _searchController = TextEditingController();
+
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    backgroundColor: const Color(0xFFF7F8FC),
+    body: Stack(
+      children: [
+        SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 120, 20, 100),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!_isSearching) // Скрываем заголовок при поиске
                 const Text(
                   "Мои карты",
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black),
                 ),
-                const SizedBox(height: 20),
-                
-                StreamBuilder<List<CardEntry>>(
-                  stream: database.cardsDao.watchAllCards(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                    
-                    final cards = snapshot.data!;
-                    if (cards.isEmpty) {
-                      return const Center(child: Text("Карт пока нет"));
-                    }
+              const SizedBox(height: 20),
+              
+              StreamBuilder<List<CardEntry>>(
+                stream: database.cardsDao.watchAllCards(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                  
+                  // ФИЛЬТРАЦИЯ
+                  final cards = snapshot.data!.where((c) {
+                    return c.title.toLowerCase().contains(_searchQuery.toLowerCase());
+                  }).toList();
 
-                    return ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: cards.length,
-                      separatorBuilder: (context, index) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final card = cards[index];
-                        return _buildCardItem(card);
-                      },
-                    );
-                  },
-                ),
-              ],
-            ),
+                  if (cards.isEmpty) return const Center(child: Text("Карт не найдено"));
+
+                  return ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: cards.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) => _buildCardItem(cards[index]),
+                  );
+                },
+              ),
+            ],
           ),
+        ),
+
+        // ВЕРХНИЕ КНОПКИ
+        Positioned(
+          top: 50,
+          left: 20,
+          right: 20,
+          child: _isSearching 
+            ? _buildSearchField() // Тот же метод, что и в кошельках
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildTopButton(Icons.account_circle, () => context.push('/settings')),
+                  _buildTopButton(Icons.search, () => setState(() => _isSearching = true)),
+                ],
+              ),
+        ),
+
+        
 
           // 2. КНОПКА ДОБАВЛЕНИЯ
           Positioned(
@@ -97,29 +119,40 @@ class _HomeCardsPageState extends State<HomeCardsPage> {
             ),
           ),
 
-          // 4. ВЕРХНИЕ КНОПКИ (ПРОФИЛЬ И ПОИСК)
-          Positioned(
-            top: 50,
-            left: 20,
-            right: 20,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildTopButton(Icons.account_circle, () {
-                  // ПЕРЕХОД ЧЕРЕЗ GO ROUTER
-                  context.push('/settings');
-                }),
-                _buildTopButton(Icons.search, () {
-                  // Логика поиска
-                }),
-              ],
-            ),
-          ),
         ],
       ),
     );
   }
 
+  Widget _buildSearchField() {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 15),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(30),
+      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)],
+    ),
+    child: TextField(
+      controller: _searchController,
+      autofocus: true,
+      decoration: InputDecoration(
+        hintText: "Поиск карты...",
+        border: InputBorder.none,
+        suffixIcon: IconButton(
+          icon: const Icon(Icons.close, color: Colors.black),
+          onPressed: () {
+            setState(() {
+              _isSearching = false;
+              _searchQuery = "";
+              _searchController.clear();
+            });
+          },
+        ),
+      ),
+      onChanged: (value) => setState(() => _searchQuery = value),
+    ),
+  );
+}
   // Виджет круглой кнопки сверху
   Widget _buildTopButton(IconData icon, VoidCallback onTap) {
     return GestureDetector(

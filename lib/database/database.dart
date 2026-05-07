@@ -30,6 +30,14 @@ class AppDatabase extends _$AppDatabase {
     onCreate: (Migrator m) async {
       await m.createAll();
 
+      await into(wallets).insert(
+      const WalletsCompanion(
+        
+        name : Value('Избранное'), 
+        color: Value('0xFF9276F6'),
+      ),
+    );
+
       
     },
     onUpgrade: (Migrator m, int from, int to) async {
@@ -44,12 +52,10 @@ LazyDatabase _openConnection() {
     String path;
     
     if (Platform.isWindows) {
-      // Это найдет путь к папке, где лежит твой проект (flutter_application_1)
-      // Вместо Directory.current лучше использовать Platform.script для Desktop
       final projectRoot = Directory.current.path;
       path = p.join(projectRoot, 'db1.sqlite');
     } else {
-      // Для Android/iOS оставляем стандарт
+      // Для Android/iOS 
       final dbFolder = await getApplicationDocumentsDirectory();
       path = p.join(dbFolder.path, 'db1.sqlite');
     }
@@ -57,6 +63,6 @@ LazyDatabase _openConnection() {
     print('Database path: $path'); // Выведет путь в консоль
     final file = File(path);
     
-    return NativeDatabase.createInBackground(file);
+    return NativeDatabase(file, logStatements: true);
   });
 }

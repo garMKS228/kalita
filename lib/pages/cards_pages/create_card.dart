@@ -20,9 +20,11 @@ class CreateCardsPage extends StatefulWidget {
 class _CreateCardsPageState extends State<CreateCardsPage> {
   final _titleController = TextEditingController();
   final _barcodeDataController = TextEditingController();
-  
-  final List<String> _barcodeTypes = ['QR Code', 'EAN-13', 'Code 128', 'UPC-A'];
-  String _selectedType = 'QR Code';
+
+  String? _barcodeError;
+  bool _isQrFixed = false; // Добавляем флаг фиксации QR
+  String _selectedType = 'EAN-8'; // Стартовый тип для автоопределения
+ 
   
   final List<Color> _availableColors = [
     Colors.red, Colors.pink, Colors.purple, Colors.deepPurple,
@@ -44,6 +46,10 @@ class _CreateCardsPageState extends State<CreateCardsPage> {
         const SnackBar(content: Text('Заполните название и данные кода')),
       );
       return;
+      
+    }
+    else if (!_validateBeforeSave()) {
+    return; // Если валидация не прошла, прерываем выполнение
     }
 
     String colorHex = '#${_selectedColor.value.toRadixString(16).substring(2)}';
@@ -60,6 +66,29 @@ class _CreateCardsPageState extends State<CreateCardsPage> {
 
     if (mounted) context.pop();
   }
+  
+  bool _validateBeforeSave() {
+  final value = _barcodeDataController.text;
+  String? error;
+
+  if (value.isEmpty) {
+    error = 'Поле не может быть пустым';
+  } else if (_selectedType == 'EAN-8' || _selectedType == 'EAN-13') {
+    if (!RegExp(r'^\d+$').hasMatch(value)) {
+      error = 'Разрешены только цифры';
+    } else if (_selectedType == 'EAN-8' && value.length != 8) {
+      error = 'Должно быть 8 цифр';
+    } else if (_selectedType == 'EAN-13' && value.length != 13) {
+      error = 'Должно быть 13 цифр';
+    }
+  }
+
+  setState(() {
+    _barcodeError = error;
+  });
+
+  return error == null; // Если ошибки нет, возвращаем true
+}
 
   @override
   Widget build(BuildContext context) {
@@ -84,44 +113,47 @@ class _CreateCardsPageState extends State<CreateCardsPage> {
                 _buildLabel("Название карты"),
                 _buildTextField(_titleController, "Напр: Пятерочка"),
                 
+                
                 const SizedBox(height: 20),
                 _buildLabel("Данные штрих-кода (номер)"),
-                _buildTextField(_barcodeDataController, "123456789..."),
+                _buildTextField(
+                  _barcodeDataController, 
+                  "Введите номер", 
+                  errorText: _barcodeError,
+                  onChanged: (value) => _autoDetectType(value), // Обязательно добавь это!
+                ),
                 
                 const SizedBox(height: 30),
-                _buildLabel("Тип кода"),
+                // Показываем текущий статус, чтобы было понятно, что происходит под капотом
+                _buildLabel("Тип кода: ${_isQrFixed ? 'QR Code' : 'Авто ($_selectedType)'}"),
                 const SizedBox(height: 10),
                 
-                SizedBox(
-                  height: 50,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _barcodeTypes.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 10),
-                    itemBuilder: (context, index) {
-                      bool isSelected = _selectedType == _barcodeTypes[index];
-                      return GestureDetector(
-                        onTap: () => setState(() => _selectedType = _barcodeTypes[index]),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: isSelected ? Colors.black : Colors.white,
-                            borderRadius: BorderRadius.circular(15),
-                            border: Border.all(color: isSelected ? Colors.black : Colors.grey.shade300),
-                          ),
-                          child: Center(
-                            child: Text(
-                              _barcodeTypes[index],
-                              style: TextStyle(
-                                color: isSelected ? Colors.white : Colors.black87,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _isQrFixed = !_isQrFixed; // Переключаем фиксацию
+                        // Сразу обновляем тип на основе текущего текста
+                        _autoDetectType(_barcodeDataController.text); 
+                      });
                     },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: _isQrFixed ? Colors.black : Colors.white,
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: _isQrFixed ? Colors.black : Colors.grey.shade300),
+                      ),
+                      child: Text(
+                        "QR Code", // Текст на кнопке
+                        style: TextStyle(
+                          color: _isQrFixed ? Colors.white : Colors.black87,
+                          fontWeight: _isQrFixed ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
                 
@@ -201,21 +233,75 @@ class _CreateCardsPageState extends State<CreateCardsPage> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String hint) {
-  return Container(
-    decoration: BoxDecoration(
-      color: Colors.white, 
-      borderRadius: BorderRadius.circular(18),
-    ),
-    child: TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        hintText: hint,
-        border: InputBorder.none,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+  void _autoDetectType(String value) {
+    // Если включена фиксация, всегда сохраняем как QR Code
+    if (_isQrFixed) {
+      setState(() => _selectedType = 'QR Code');
+      return;
+    }
+
+    // Если фиксация отключена, считаем цифры
+    setState(() {
+      if (value.length == 8 && RegExp(r'^\d+$').hasMatch(value)) {
+        _selectedType = 'EAN-8';
+      } else if (value.length > 8 && RegExp(r'^\d+$').hasMatch(value)) {
+        _selectedType = 'EAN-13';
+      } else {
+        _selectedType = 'EAN-8'; // Тип по умолчанию для авторежима, пока цифр не 8 и не 13
+      }
+    });
+  }
+
+  Widget _buildChipUI(String text, bool isSelected) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        color: isSelected ? Colors.black : Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: isSelected ? Colors.black : Colors.grey.shade300),
       ),
-    ),
-  );
+      child: Center(
+        child: Text(
+          text,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.black87,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(TextEditingController controller, String hint, {String? errorText, void Function(String)? onChanged}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: TextField(
+            controller: controller,
+            onChanged: onChanged, // Добавлено отслеживание ввода
+            decoration: InputDecoration(
+              hintText: hint,
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            ),
+          ),
+        ),
+        if (errorText != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 16, top: 6),
+            child: Text(
+              errorText,
+              style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+          ),
+      ],
+    );
   }
 
   Widget _buildTopButton(IconData icon, VoidCallback onTap) {
