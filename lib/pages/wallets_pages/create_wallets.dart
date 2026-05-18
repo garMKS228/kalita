@@ -3,9 +3,10 @@ import 'package:go_router/go_router.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter_application_1/main.dart';
 import 'package:flutter_application_1/database/database.dart';
+import '../../services/firebase_sync_service.dart';
+import 'package:uuid/uuid.dart';
 // Исправлен путь импорта в соответствии с вашей структурой
-import 'package:flutter_application_1/widgets/ios_widgets.dart'; 
-import 'package:provider/provider.dart';
+
 
 class CreateWalletsPage extends StatefulWidget {
   final String title;
@@ -49,28 +50,35 @@ class _CreateWalletsPageState extends State<CreateWalletsPage> {
   // Основная логика сохранения/обновления
   void _saveToDatabase() async {
     final name = _nameController.text.trim();
+    final String walletId = widget.wallet?.id ?? const Uuid().v4();
     if (name.isEmpty) return;
 
-    final colorHex = '#${_selectedColor.value.toRadixString(16).padLeft(8, '0')}';
+    final companion = WalletsCompanion(
+      id: drift.Value(walletId),
+      name: drift.Value(name),
+      color: drift.Value('0x${_selectedColor.value.toRadixString(16).toUpperCase()}'),
+    );
 
-    if (widget.wallet == null) {
-      // СОЗДАНИЕ НОВОГО
-      final companion = WalletsCompanion(
-        name: drift.Value(name),
-        color: drift.Value(colorHex),
-      );
-      await database.walletsDao.insertWallet(companion);
-    } else {
-      // ОБНОВЛЕНИЕ СУЩЕСТВУЮЩЕГО (используем copyWith для сохранения id)
-      final updatedWallet = widget.wallet!.copyWith(
-        name: name,
-        color: colorHex,
-      );
-      await database.walletsDao.updateWallet(updatedWallet);
-    }
-
-    if (mounted) {
-      context.pop();
+    try {
+      final syncService = FirebaseSyncService(database);
+      
+      if (widget.wallet == null) {
+        // Создание нового
+        await database.into(database.wallets).insert(companion);
+        final newWallet = await (database.select(database.wallets)..where((t) => t.id.equals(walletId))).getSingle();
+        await syncService.pushWallet(newWallet);
+      } else {
+        // Редактирование существующего
+        await (database.update(database.wallets)..where((t) => t.id.equals(widget.wallet!.id)))
+            .write(companion);
+        
+        final updatedWallet = await (database.select(database.wallets)..where((t) => t.id.equals(widget.wallet!.id))).getSingle();
+        await syncService.pushWallet(updatedWallet);
+      }
+      
+      if (mounted) context.pop();
+    } catch (e) {
+      print("Ошибка сохранения кошелька: $e");
     }
   }
 

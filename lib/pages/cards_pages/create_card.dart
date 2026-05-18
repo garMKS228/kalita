@@ -3,13 +3,15 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_application_1/widgets/ios_widgets.dart';
 import 'package:flutter_application_1/main.dart'; 
 import 'package:flutter_application_1/database/database.dart';
+import '../../services/firebase_sync_service.dart';
 import 'package:drift/drift.dart' as drift;
+import 'package:uuid/uuid.dart';
 
 bool WalletsCardSwitch = true;
 
 class CreateCardsPage extends StatefulWidget {
   final String title;
-  final int? initialWalletId; // Может быть null
+  final String? initialWalletId; // Может быть null
 
   const CreateCardsPage({super.key, required this.title, this.initialWalletId});
 
@@ -40,55 +42,76 @@ class _CreateCardsPageState extends State<CreateCardsPage> {
     super.dispose();
   }
 
-  Future<void> _saveToDatabase() async {
-    if (_titleController.text.isEmpty || _barcodeDataController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Заполните название и данные кода')),
-      );
+  void _showError(String message) {
+  if (!mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(message),
+      backgroundColor: Colors.redAccent,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ),
+  );
+}
+
+  void _saveToDatabase() async {
+    final title = _titleController.text.trim();
+    final barcodeData = _barcodeDataController.text.trim();
+    final String newId = const Uuid().v4();
+
+    if (title.isEmpty) {
+      _showError("Заполните название карты");
       return;
-      
-    }
-    else if (!_validateBeforeSave()) {
-    return; // Если валидация не прошла, прерываем выполнение
     }
 
-    String colorHex = '#${_selectedColor.value.toRadixString(16).substring(2)}';
+    // ВЫЗЫВАЕМ ВАЛИДАТОР ЗДЕСЬ!
+    if (!_validateBeforeSave()) {
+      return; // Если есть ошибка (например, не 13 цифр) — выходим
+    }
 
-    await database.cardsDao.insertCard(
-      CardsCompanion(
-        title: drift.Value(_titleController.text),
-        barcode_data: drift.Value(_barcodeDataController.text),
-        barcode_type: drift.Value(_selectedType),
-        color: drift.Value(colorHex),
-        wallet_id: drift.Value(widget.initialWalletId), // Если null, будет свободной
-      ),
+    final companion = CardsCompanion(
+      id: drift.Value(newId),
+      title: drift.Value(title),
+      barcode_data: drift.Value(barcodeData),
+      barcode_type: drift.Value(_selectedType),
+      color: drift.Value('0x${_selectedColor.value.toRadixString(16).toUpperCase()}'),
+      wallet_id: drift.Value(widget.initialWalletId),
     );
 
-    if (mounted) context.pop();
-  }
-  
-  bool _validateBeforeSave() {
-  final value = _barcodeDataController.text;
-  String? error;
+    try {
+      await database.into(database.cards).insert(companion);
+      final newCard = await database.cardsDao.getCardById(newId);
+      
+      final syncService = FirebaseSyncService(database);
+      await syncService.pushCard(newCard);
 
-  if (value.isEmpty) {
-    error = 'Поле не может быть пустым';
-  } else if (_selectedType == 'EAN-8' || _selectedType == 'EAN-13') {
-    if (!RegExp(r'^\d+$').hasMatch(value)) {
-      error = 'Разрешены только цифры';
-    } else if (_selectedType == 'EAN-8' && value.length != 8) {
-      error = 'Должно быть 8 цифр';
-    } else if (_selectedType == 'EAN-13' && value.length != 13) {
-      error = 'Должно быть 13 цифр';
+      if (mounted) context.pop();
+    } catch (e) {
+      _showError("Ошибка при сохранении: $e");
     }
   }
+  
+ bool _validateBeforeSave() {
+    final value = _barcodeDataController.text.trim();
+    String? error;
 
-  setState(() {
-    _barcodeError = error;
-  });
+    if (value.isEmpty) {
+      error = 'Поле не может быть пустым';
+    } else if (!_isQrFixed) { 
+      // ВАЛИДАЦИЯ РАБОТАЕТ ТОЛЬКО ЕСЛИ QR-КНОПКА ВЫКЛЮЧЕНА
+      if (!RegExp(r'^\d+$').hasMatch(value)) {
+        error = 'Разрешены только цифры';
+      } else if (value.length != 8 && value.length != 13) {
+        error = 'Должно быть 8 или 13 цифр';
+      }
+    }
 
-  return error == null; // Если ошибки нет, возвращаем true
-}
+    setState(() {
+      _barcodeError = error;
+    });
+
+    return error == null; // Возвращает true, если ошибок нет
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -236,7 +259,10 @@ class _CreateCardsPageState extends State<CreateCardsPage> {
   void _autoDetectType(String value) {
     // Если включена фиксация, всегда сохраняем как QR Code
     if (_isQrFixed) {
-      setState(() => _selectedType = 'QR Code');
+      setState(() {
+        _selectedType = 'QR Code';
+        _barcodeError = null; // Принудительно убираем ошибку
+      });
       return;
     }
 
@@ -247,9 +273,12 @@ class _CreateCardsPageState extends State<CreateCardsPage> {
       } else if (value.length > 8 && RegExp(r'^\d+$').hasMatch(value)) {
         _selectedType = 'EAN-13';
       } else {
-        _selectedType = 'EAN-8'; // Тип по умолчанию для авторежима, пока цифр не 8 и не 13
+        _selectedType = 'EAN-8'; 
       }
     });
+
+    // Динамическая проверка: чтобы ошибка исчезала прямо во время ввода
+    _validateBeforeSave();
   }
 
   Widget _buildChipUI(String text, bool isSelected) {

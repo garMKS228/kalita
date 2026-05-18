@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_application_1/main.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/firebase_sync_service.dart';
-import 'package:provider/provider.dart';
-import '../../database/database.dart';
+import 'package:flutter_application_1/services/push_notification_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -15,7 +15,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _syncService = FirebaseSyncService();
+  
   bool _isLoading = false;
 
   Future<void> _login() async {
@@ -23,33 +23,47 @@ class _LoginPageState extends State<LoginPage> {
     final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      _showError("Заполните все поля");
+      // Замените на ваш метод показа ошибки
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Заполните все поля")),
+      );
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
+      // 1. Аутентификация
       UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      // Проверка подтверждения почты
-      if (userCredential.user != null && !userCredential.user!.emailVerified) {
-        await FirebaseAuth.instance.signOut();
-        _showError("Пожалуйста, подтвердите Email перед входом.");
-        return;
+      final user = userCredential.user;
+
+      if (user != null) {
+        debugPrint("Авторизация успешна. Ждем синхронизации потоков Windows...");
+        
+        final pushService = PushNotificationService();
+        await pushService.init(); 
+        await pushService.checkAndShowWelcomeNotification();
+        await Future.delayed(const Duration(milliseconds: 400));
+
+        // 2. Скачиваем данные
+        await FirebaseSyncService(database).pullDatabaseFromCloud(user.uid);
+
+        // 3. Переходим на главную ТОЛЬКО если всё скачалось и виджет еще жив
+        if (mounted) {
+          context.go('/home_wallets');
+        }
       }
-
-      // Если почта подтверждена — восстанавливаем данные из Firebase в Drift
-      //final db = Provider.of<AppDatabase>(context, listen: false);
-      //await _syncService.restoreDataFromCloud(db);
-
-      if (mounted) context.go('/home_cards');
-      
-    } on FirebaseAuthException catch (e) {
-      _showError("Неверный Email или пароль");
+    } catch (e) {
+      debugPrint("Ошибка входа: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Ошибка: $e")),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

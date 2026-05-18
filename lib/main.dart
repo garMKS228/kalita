@@ -13,6 +13,9 @@ import './pages/auth_pages/login.dart';
 import './pages/auth_pages/register.dart';
 import 'firebase_options.dart';
 import 'package:flutter_application_1/pages/settings_pages/settings.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import './services/push_notification_service.dart';
+
 
 late AppDatabase database;
 
@@ -24,6 +27,13 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     print("Firebase успешно инициализирован!");
+    await PushNotificationService().init();
+
+    // Слушаем пуши, когда приложение ОТКРЫТО (в фокусе)
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      print('Получен пуш в открытом приложении: ${message.notification?.title}');
+      // Здесь потом можно добавить показ SnackBar, чтобы юзер увидел уведомление прямо в приложении
+    });
   } catch (e) {
     print("Ошибка инициализации Firebase: $e");
   }
@@ -92,8 +102,8 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/home_cards/create_cards',
       builder: (context, state) {
-        // ИЗМЕНЕНИЕ ЗДЕСЬ: Безопасно получаем int? из extra
-        final walletId = state.extra as int?;
+        
+        final walletId = state.extra as String?;
         return CreateCardsPage(title: 'Создание карты', initialWalletId: walletId);
       }, 
     ),

@@ -10,16 +10,12 @@ class $WalletsTable extends Wallets with TableInfo<$WalletsTable, Wallet> {
   $WalletsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
     'id',
     aliasedName,
     false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
   @override
@@ -59,6 +55,8 @@ class $WalletsTable extends Wallets with TableInfo<$WalletsTable, Wallet> {
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
     }
     if (data.containsKey('name')) {
       context.handle(
@@ -86,7 +84,7 @@ class $WalletsTable extends Wallets with TableInfo<$WalletsTable, Wallet> {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return Wallet(
       id: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
+        DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
       name: attachedDatabase.typeMapping.read(
@@ -107,14 +105,14 @@ class $WalletsTable extends Wallets with TableInfo<$WalletsTable, Wallet> {
 }
 
 class Wallet extends DataClass implements Insertable<Wallet> {
-  final int id;
+  final String id;
   final String name;
   final String color;
   const Wallet({required this.id, required this.name, required this.color});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
+    map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
     map['color'] = Variable<String>(color);
     return map;
@@ -134,7 +132,7 @@ class Wallet extends DataClass implements Insertable<Wallet> {
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return Wallet(
-      id: serializer.fromJson<int>(json['id']),
+      id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       color: serializer.fromJson<String>(json['color']),
     );
@@ -143,13 +141,13 @@ class Wallet extends DataClass implements Insertable<Wallet> {
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
+      'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'color': serializer.toJson<String>(color),
     };
   }
 
-  Wallet copyWith({int? id, String? name, String? color}) => Wallet(
+  Wallet copyWith({String? id, String? name, String? color}) => Wallet(
     id: id ?? this.id,
     name: name ?? this.name,
     color: color ?? this.color,
@@ -184,41 +182,49 @@ class Wallet extends DataClass implements Insertable<Wallet> {
 }
 
 class WalletsCompanion extends UpdateCompanion<Wallet> {
-  final Value<int> id;
+  final Value<String> id;
   final Value<String> name;
   final Value<String> color;
+  final Value<int> rowid;
   const WalletsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.color = const Value.absent(),
+    this.rowid = const Value.absent(),
   });
   WalletsCompanion.insert({
-    this.id = const Value.absent(),
+    required String id,
     required String name,
     required String color,
-  }) : name = Value(name),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
        color = Value(color);
   static Insertable<Wallet> custom({
-    Expression<int>? id,
+    Expression<String>? id,
     Expression<String>? name,
     Expression<String>? color,
+    Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (color != null) 'color': color,
+      if (rowid != null) 'rowid': rowid,
     });
   }
 
   WalletsCompanion copyWith({
-    Value<int>? id,
+    Value<String>? id,
     Value<String>? name,
     Value<String>? color,
+    Value<int>? rowid,
   }) {
     return WalletsCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       color: color ?? this.color,
+      rowid: rowid ?? this.rowid,
     );
   }
 
@@ -226,13 +232,16 @@ class WalletsCompanion extends UpdateCompanion<Wallet> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     if (id.present) {
-      map['id'] = Variable<int>(id.value);
+      map['id'] = Variable<String>(id.value);
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
     }
     if (color.present) {
       map['color'] = Variable<String>(color.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
     }
     return map;
   }
@@ -242,7 +251,8 @@ class WalletsCompanion extends UpdateCompanion<Wallet> {
     return (StringBuffer('WalletsCompanion(')
           ..write('id: $id, ')
           ..write('name: $name, ')
-          ..write('color: $color')
+          ..write('color: $color, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -555,26 +565,22 @@ class $CardsTable extends Cards with TableInfo<$CardsTable, CardEntry> {
   $CardsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
     'id',
     aliasedName,
     false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _wallet_idMeta = const VerificationMeta(
     'wallet_id',
   );
   @override
-  late final GeneratedColumn<int> wallet_id = GeneratedColumn<int>(
+  late final GeneratedColumn<String> wallet_id = GeneratedColumn<String>(
     'wallet_id',
     aliasedName,
     true,
-    type: DriftSqlType.int,
+    type: DriftSqlType.string,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'REFERENCES wallets (id)',
@@ -698,6 +704,8 @@ class $CardsTable extends Cards with TableInfo<$CardsTable, CardEntry> {
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
     }
     if (data.containsKey('wallet_id')) {
       context.handle(
@@ -775,11 +783,11 @@ class $CardsTable extends Cards with TableInfo<$CardsTable, CardEntry> {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return CardEntry(
       id: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
+        DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
       wallet_id: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
+        DriftSqlType.string,
         data['${effectivePrefix}wallet_id'],
       ),
       category_id: attachedDatabase.typeMapping.read(
@@ -820,8 +828,8 @@ class $CardsTable extends Cards with TableInfo<$CardsTable, CardEntry> {
 }
 
 class CardEntry extends DataClass implements Insertable<CardEntry> {
-  final int id;
-  final int? wallet_id;
+  final String id;
+  final String? wallet_id;
   final int? category_id;
   final String title;
   final String barcode_data;
@@ -843,9 +851,9 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
+    map['id'] = Variable<String>(id);
     if (!nullToAbsent || wallet_id != null) {
-      map['wallet_id'] = Variable<int>(wallet_id);
+      map['wallet_id'] = Variable<String>(wallet_id);
     }
     if (!nullToAbsent || category_id != null) {
       map['category_id'] = Variable<int>(category_id);
@@ -891,8 +899,8 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return CardEntry(
-      id: serializer.fromJson<int>(json['id']),
-      wallet_id: serializer.fromJson<int?>(json['wallet_id']),
+      id: serializer.fromJson<String>(json['id']),
+      wallet_id: serializer.fromJson<String?>(json['wallet_id']),
       category_id: serializer.fromJson<int?>(json['category_id']),
       title: serializer.fromJson<String>(json['title']),
       barcode_data: serializer.fromJson<String>(json['barcode_data']),
@@ -906,8 +914,8 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
-      'wallet_id': serializer.toJson<int?>(wallet_id),
+      'id': serializer.toJson<String>(id),
+      'wallet_id': serializer.toJson<String?>(wallet_id),
       'category_id': serializer.toJson<int?>(category_id),
       'title': serializer.toJson<String>(title),
       'barcode_data': serializer.toJson<String>(barcode_data),
@@ -919,8 +927,8 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
   }
 
   CardEntry copyWith({
-    int? id,
-    Value<int?> wallet_id = const Value.absent(),
+    String? id,
+    Value<String?> wallet_id = const Value.absent(),
     Value<int?> category_id = const Value.absent(),
     String? title,
     String? barcode_data,
@@ -1005,8 +1013,8 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
 }
 
 class CardsCompanion extends UpdateCompanion<CardEntry> {
-  final Value<int> id;
-  final Value<int?> wallet_id;
+  final Value<String> id;
+  final Value<String?> wallet_id;
   final Value<int?> category_id;
   final Value<String> title;
   final Value<String> barcode_data;
@@ -1014,6 +1022,7 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
   final Value<String?> color;
   final Value<bool> is_favorite;
   final Value<DateTime?> lat_used;
+  final Value<int> rowid;
   const CardsCompanion({
     this.id = const Value.absent(),
     this.wallet_id = const Value.absent(),
@@ -1024,9 +1033,10 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
     this.color = const Value.absent(),
     this.is_favorite = const Value.absent(),
     this.lat_used = const Value.absent(),
+    this.rowid = const Value.absent(),
   });
   CardsCompanion.insert({
-    this.id = const Value.absent(),
+    required String id,
     this.wallet_id = const Value.absent(),
     this.category_id = const Value.absent(),
     required String title,
@@ -1035,12 +1045,14 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
     this.color = const Value.absent(),
     this.is_favorite = const Value.absent(),
     this.lat_used = const Value.absent(),
-  }) : title = Value(title),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       title = Value(title),
        barcode_data = Value(barcode_data),
        barcode_type = Value(barcode_type);
   static Insertable<CardEntry> custom({
-    Expression<int>? id,
-    Expression<int>? wallet_id,
+    Expression<String>? id,
+    Expression<String>? wallet_id,
     Expression<int>? category_id,
     Expression<String>? title,
     Expression<String>? barcode_data,
@@ -1048,6 +1060,7 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
     Expression<String>? color,
     Expression<bool>? is_favorite,
     Expression<DateTime>? lat_used,
+    Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1059,12 +1072,13 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
       if (color != null) 'color': color,
       if (is_favorite != null) 'is_favorite': is_favorite,
       if (lat_used != null) 'lat_used': lat_used,
+      if (rowid != null) 'rowid': rowid,
     });
   }
 
   CardsCompanion copyWith({
-    Value<int>? id,
-    Value<int?>? wallet_id,
+    Value<String>? id,
+    Value<String?>? wallet_id,
     Value<int?>? category_id,
     Value<String>? title,
     Value<String>? barcode_data,
@@ -1072,6 +1086,7 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
     Value<String?>? color,
     Value<bool>? is_favorite,
     Value<DateTime?>? lat_used,
+    Value<int>? rowid,
   }) {
     return CardsCompanion(
       id: id ?? this.id,
@@ -1083,6 +1098,7 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
       color: color ?? this.color,
       is_favorite: is_favorite ?? this.is_favorite,
       lat_used: lat_used ?? this.lat_used,
+      rowid: rowid ?? this.rowid,
     );
   }
 
@@ -1090,10 +1106,10 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     if (id.present) {
-      map['id'] = Variable<int>(id.value);
+      map['id'] = Variable<String>(id.value);
     }
     if (wallet_id.present) {
-      map['wallet_id'] = Variable<int>(wallet_id.value);
+      map['wallet_id'] = Variable<String>(wallet_id.value);
     }
     if (category_id.present) {
       map['category_id'] = Variable<int>(category_id.value);
@@ -1116,6 +1132,9 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
     if (lat_used.present) {
       map['lat_used'] = Variable<DateTime>(lat_used.value);
     }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
     return map;
   }
 
@@ -1130,7 +1149,8 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
           ..write('barcode_type: $barcode_type, ')
           ..write('color: $color, ')
           ..write('is_favorite: $is_favorite, ')
-          ..write('lat_used: $lat_used')
+          ..write('lat_used: $lat_used, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -1158,15 +1178,17 @@ abstract class _$AppDatabase extends GeneratedDatabase {
 
 typedef $$WalletsTableCreateCompanionBuilder =
     WalletsCompanion Function({
-      Value<int> id,
+      required String id,
       required String name,
       required String color,
+      Value<int> rowid,
     });
 typedef $$WalletsTableUpdateCompanionBuilder =
     WalletsCompanion Function({
-      Value<int> id,
+      Value<String> id,
       Value<String> name,
       Value<String> color,
+      Value<int> rowid,
     });
 
 final class $$WalletsTableReferences
@@ -1184,7 +1206,7 @@ final class $$WalletsTableReferences
     final manager = $$CardsTableTableManager(
       $_db,
       $_db.cards,
-    ).filter((f) => f.wallet_id.id.sqlEquals($_itemColumn<int>('id')!));
+    ).filter((f) => f.wallet_id.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_cardsRefsTable($_db));
     return ProcessedTableManager(
@@ -1202,7 +1224,7 @@ class $$WalletsTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<int> get id => $composableBuilder(
+  ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnFilters(column),
   );
@@ -1252,7 +1274,7 @@ class $$WalletsTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<int> get id => $composableBuilder(
+  ColumnOrderings<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnOrderings(column),
   );
@@ -1277,7 +1299,7 @@ class $$WalletsTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<int> get id =>
+  GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
   GeneratedColumn<String> get name =>
@@ -1340,16 +1362,28 @@ class $$WalletsTableTableManager
               $$WalletsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
-                Value<int> id = const Value.absent(),
+                Value<String> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<String> color = const Value.absent(),
-              }) => WalletsCompanion(id: id, name: name, color: color),
+                Value<int> rowid = const Value.absent(),
+              }) => WalletsCompanion(
+                id: id,
+                name: name,
+                color: color,
+                rowid: rowid,
+              ),
           createCompanionCallback:
               ({
-                Value<int> id = const Value.absent(),
+                required String id,
                 required String name,
                 required String color,
-              }) => WalletsCompanion.insert(id: id, name: name, color: color),
+                Value<int> rowid = const Value.absent(),
+              }) => WalletsCompanion.insert(
+                id: id,
+                name: name,
+                color: color,
+                rowid: rowid,
+              ),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
@@ -1678,8 +1712,8 @@ typedef $$CategoriesTableProcessedTableManager =
     >;
 typedef $$CardsTableCreateCompanionBuilder =
     CardsCompanion Function({
-      Value<int> id,
-      Value<int?> wallet_id,
+      required String id,
+      Value<String?> wallet_id,
       Value<int?> category_id,
       required String title,
       required String barcode_data,
@@ -1687,11 +1721,12 @@ typedef $$CardsTableCreateCompanionBuilder =
       Value<String?> color,
       Value<bool> is_favorite,
       Value<DateTime?> lat_used,
+      Value<int> rowid,
     });
 typedef $$CardsTableUpdateCompanionBuilder =
     CardsCompanion Function({
-      Value<int> id,
-      Value<int?> wallet_id,
+      Value<String> id,
+      Value<String?> wallet_id,
       Value<int?> category_id,
       Value<String> title,
       Value<String> barcode_data,
@@ -1699,6 +1734,7 @@ typedef $$CardsTableUpdateCompanionBuilder =
       Value<String?> color,
       Value<bool> is_favorite,
       Value<DateTime?> lat_used,
+      Value<int> rowid,
     });
 
 final class $$CardsTableReferences
@@ -1709,7 +1745,7 @@ final class $$CardsTableReferences
       .createAlias($_aliasNameGenerator(db.cards.wallet_id, db.wallets.id));
 
   $$WalletsTableProcessedTableManager? get wallet_id {
-    final $_column = $_itemColumn<int>('wallet_id');
+    final $_column = $_itemColumn<String>('wallet_id');
     if ($_column == null) return null;
     final manager = $$WalletsTableTableManager(
       $_db,
@@ -1750,7 +1786,7 @@ class $$CardsTableFilterComposer extends Composer<_$AppDatabase, $CardsTable> {
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<int> get id => $composableBuilder(
+  ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnFilters(column),
   );
@@ -1841,7 +1877,7 @@ class $$CardsTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<int> get id => $composableBuilder(
+  ColumnOrderings<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnOrderings(column),
   );
@@ -1932,7 +1968,7 @@ class $$CardsTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<int> get id =>
+  GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
   GeneratedColumn<String> get title =>
@@ -2034,8 +2070,8 @@ class $$CardsTableTableManager
               $$CardsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
-                Value<int> id = const Value.absent(),
-                Value<int?> wallet_id = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String?> wallet_id = const Value.absent(),
                 Value<int?> category_id = const Value.absent(),
                 Value<String> title = const Value.absent(),
                 Value<String> barcode_data = const Value.absent(),
@@ -2043,6 +2079,7 @@ class $$CardsTableTableManager
                 Value<String?> color = const Value.absent(),
                 Value<bool> is_favorite = const Value.absent(),
                 Value<DateTime?> lat_used = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
               }) => CardsCompanion(
                 id: id,
                 wallet_id: wallet_id,
@@ -2053,11 +2090,12 @@ class $$CardsTableTableManager
                 color: color,
                 is_favorite: is_favorite,
                 lat_used: lat_used,
+                rowid: rowid,
               ),
           createCompanionCallback:
               ({
-                Value<int> id = const Value.absent(),
-                Value<int?> wallet_id = const Value.absent(),
+                required String id,
+                Value<String?> wallet_id = const Value.absent(),
                 Value<int?> category_id = const Value.absent(),
                 required String title,
                 required String barcode_data,
@@ -2065,6 +2103,7 @@ class $$CardsTableTableManager
                 Value<String?> color = const Value.absent(),
                 Value<bool> is_favorite = const Value.absent(),
                 Value<DateTime?> lat_used = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
               }) => CardsCompanion.insert(
                 id: id,
                 wallet_id: wallet_id,
@@ -2075,6 +2114,7 @@ class $$CardsTableTableManager
                 color: color,
                 is_favorite: is_favorite,
                 lat_used: lat_used,
+                rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
               .map(

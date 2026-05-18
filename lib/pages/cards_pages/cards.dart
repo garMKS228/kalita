@@ -8,6 +8,7 @@ import 'package:flutter_application_1/widgets/ios_widgets.dart';
 import 'package:barcode_widget/barcode_widget.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:drift/drift.dart' as drift;
+import '../../services/firebase_sync_service.dart';
 
 bool walletsCardSwitch = true;
 
@@ -80,7 +81,7 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
     );
 
     if (confirm == true) {
-      await database.cardsDao.deleteCard(widget.cardItem);
+      await database.cardsDao.deleteCard(widget.cardItem.id);
       if (mounted) {
         context.pop(); // Возврат на список карт
       }
@@ -116,16 +117,17 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
     }
 
   // Если проверки пройдены, сохраняем
-  final updatedCard = widget.cardItem.copyWith(
-    title: _titleController.text,
-    barcode_data: value,
-    barcode_type: _selectedType,
-    color: drift.Value('#${_selectedColor.value.toRadixString(16).substring(2)}'),
-  );
+    final updatedCard = widget.cardItem.copyWith(
+      title: _titleController.text,
+      barcode_data: value,
+      barcode_type: _selectedType,
+      color: drift.Value('#${_selectedColor.value.toRadixString(16).substring(2)}'),
+    );
 
-  await database.update(database.cards).replace(updatedCard);
-  setState(() => isEditing = false);
-}
+    await database.update(database.cards).replace(updatedCard);
+    await FirebaseSyncService(database).updateCardInCloud(updatedCard);
+    setState(() => isEditing = false);
+  }
   
 
   void _cancelEditing() {
@@ -250,6 +252,8 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
                       isFavorite ? Icons.favorite : Icons.favorite_border, 
                       () async {
                         final newStatus = !isFavorite;
+                        final updatedCard = widget.cardItem.copyWith(is_favorite: newStatus);
+                        FirebaseSyncService(database).updateCardInCloud(updatedCard);
                         setState(() => isFavorite = newStatus);
                         await database.cardsDao.updateFavoriteStatus(widget.cardItem.id, newStatus);
                       }, 

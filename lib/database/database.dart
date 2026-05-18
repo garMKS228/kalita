@@ -32,7 +32,7 @@ class AppDatabase extends _$AppDatabase {
 
       await into(wallets).insert(
       const WalletsCompanion(
-        
+        id: Value("default_favorite"),
         name : Value('Избранное'), 
         color: Value('0xFF9276F6'),
       ),
@@ -45,7 +45,25 @@ class AppDatabase extends _$AppDatabase {
     },
     
   );
+
+  Future<void> clearAllData() async {
+    await transaction(() async {
+      // Удаляем все данные из таблиц
+      await delete(cards).go();
+      await delete(wallets).go();
+      
+      // Сразу создаем "Избранное", так как это системный кошелек
+      await into(wallets).insert(
+        const WalletsCompanion(
+          id: Value("default_favorite"),
+          name: Value('Избранное'),
+          color: Value('0xFF9276F6'),
+        ),
+      );
+    });
+  } 
 }
+
 
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {

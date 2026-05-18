@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_application_1/database/database.dart';
 import 'package:flutter_application_1/main.dart';
 import 'package:drift/drift.dart' as drift;
-// Исправлен путь к виджетам
+import '../../services/firebase_sync_service.dart';
 import 'package:flutter_application_1/widgets/ios_widgets.dart';
 
 class WalletDetailsPage extends StatefulWidget {
@@ -47,6 +47,7 @@ class _WalletDetailsPageState extends State<WalletDetailsPage> {
     );
 
     await database.walletsDao.updateWallet(updatedWallet);
+    await FirebaseSyncService(database).updateWalletInCloud(updatedWallet);
 
     setState(() {
       isEditing = false;
@@ -59,7 +60,7 @@ class _WalletDetailsPageState extends State<WalletDetailsPage> {
   }
 
   void _deleteWallet() async {
-    await database.walletsDao.deleteWallet(widget.wallet);
+    await database.walletsDao.deleteWallet(widget.wallet.id);
     if (mounted) {
       context.pop();
     }

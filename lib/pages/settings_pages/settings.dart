@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_application_1/main.dart';
 import 'package:go_router/go_router.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -12,24 +13,20 @@ class SettingsPage extends StatelessWidget {
 
   // Функционал выхода из аккаунта
   void _logout(BuildContext context) async {
-  try {
-    // 1. Сначала инициируем выход в Firebase
-    await FirebaseAuth.instance.signOut();
+    try {
+      // 1. Очищаем локальную базу данных Drift
+      await database.clearAllData(); 
 
-    // 2. Ждем завершения текущего цикла отрисовки
-    if (context.mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        // 3. Только теперь делаем переход
-        if (context.mounted) {
-          context.go('/login');
-        }
-      });
+      // 2. Выходим из Firebase
+      await FirebaseAuth.instance.signOut();
+
+      if (context.mounted) {
+        context.go('/login');
+      }
+      debugPrint('База очищена, выход выполнен');
+    } catch (e) {
+      debugPrint('Ошибка при выходе: $e');
     }
-    
-    debugPrint('Успешный выход');
-  } catch (e) {
-    debugPrint('Ошибка при выходе: $e');
-  }
   }
   @override
   Widget build(BuildContext context) {

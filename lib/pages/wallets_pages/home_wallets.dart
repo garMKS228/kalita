@@ -15,7 +15,7 @@ class HomeWalletsPage extends StatefulWidget {
 
 class _HomeWalletsPageState extends State<HomeWalletsPage> {
   bool walletsSwitch = false; 
-  int? expandedWalletId; // Для отслеживания раскрытого кошелька
+  String? expandedWalletId; // Для отслеживания раскрытого кошелька
 
   Color _getWalletColor(String? hex) {
     if (hex == null || hex.isEmpty) return Colors.blueAccent;
@@ -27,7 +27,7 @@ class _HomeWalletsPageState extends State<HomeWalletsPage> {
   }
 
   // Диалог привязки существующей карты
-  void _showBindCardDialog(int walletId) async {
+  void _showBindCardDialog(String walletId) async {
     final freeCards = await database.cardsDao.getFreeCards();
     
     if (!mounted) return;

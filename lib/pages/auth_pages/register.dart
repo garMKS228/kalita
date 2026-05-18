@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/push_notification_service.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -59,6 +60,7 @@ class _RegisterPageState extends State<RegisterPage> {
       
       // Отправляем письмо для подтверждения
       await userCredential.user?.sendEmailVerification();
+      
       
       // Выходим из аккаунта, чтобы заставить войти через Login с проверкой
       await FirebaseAuth.instance.signOut();

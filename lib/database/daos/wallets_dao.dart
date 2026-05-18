@@ -8,39 +8,39 @@ part 'wallets_dao.g.dart';
 class WalletsDao extends DatabaseAccessor<AppDatabase> with _$WalletsDaoMixin {
   WalletsDao(AppDatabase db) : super(db);
 
+  // Получение всех кошельков с правильной сортировкой
   Future<List<Wallet>> getAllWallets() async {
     final allWallets = await select(wallets).get();
-    
-    // Сортируем: Избранное всегда первое
-    allWallets.sort((a, b) {
-      if (a.name == 'Избранное') return -1; // Если Избранное, ставим выше
-      if (b.name == 'Избранное') return 1;  // Если второе Избранное, первое выше
-      return a.id.compareTo(b.id);          // Остальные сортируем по ID (или как тебе удобно)
-    });
-    
-    return allWallets;
+    return _sortWallets(allWallets);
   }
 
-  // Изменяем Stream, чтобы он тоже всегда выдавал отсортированный список
+  // Стрим для автообновления UI
   Stream<List<Wallet>> watchAllWallets() {
-    return select(wallets).watch().map((walletsList) {
-      walletsList.sort((a, b) {
-        if (a.name == 'Избранное') return -1;
-        if (b.name == 'Избранное') return 1;
-        return a.id.compareTo(b.id);
-      });
-      return walletsList;
+    return select(wallets).watch().map((walletsList) => _sortWallets(walletsList));
+  }
+
+  // Вспомогательный метод сортировки (Избранное всегда первое)
+  List<Wallet> _sortWallets(List<Wallet> list) {
+    final mutableList = List<Wallet>.from(list);
+    mutableList.sort((a, b) {
+      if (a.name == 'Избранное') return -1;
+      if (b.name == 'Избранное') return 1;
+      // UUID — это строки, их тоже можно сравнивать через compareTo
+      return a.id.compareTo(b.id); 
     });
+    return mutableList;
   }
 
-  Future<int> insertWallet(WalletsCompanion wallet) => into(wallets).insert(wallet);
-
-  Future<bool> updateWallet(Wallet wallet) => update(wallets).replace(wallet);
-
-  Future<int> deleteWallet(Wallet wallet) async {
-    if (wallet.name.toLowerCase() == 'избранное') {
-      return 0; // Защита: отменяем удаление и возвращаем 0
-    }
-    return delete(wallets).delete(wallet);
+  // ПОИСК: теперь принимаем String id
+  Future<Wallet> getWalletById(String id) {
+    return (select(wallets)..where((t) => t.id.equals(id))).getSingle();
   }
+
+  // УДАЛЕНИЕ: теперь принимаем String id
+  Future deleteWallet(String id) {
+    return (delete(wallets)..where((t) => t.id.equals(id))).go();
+  }
+  
+  // ОБНОВЛЕНИЕ: Companion теперь сам подхватит String для id
+  Future updateWallet(Wallet wallet) => update(wallets).replace(wallet);
 }
