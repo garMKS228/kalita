@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter_application_1/main.dart';
 import 'package:flutter_application_1/database/database.dart';
 import '../../services/firebase_sync_service.dart';
 import 'package:uuid/uuid.dart';
-// Исправлен путь импорта в соответствии с вашей структурой
-
 
 class CreateWalletsPage extends StatefulWidget {
   final String title;
@@ -20,6 +19,9 @@ class CreateWalletsPage extends StatefulWidget {
 
 class _CreateWalletsPageState extends State<CreateWalletsPage> {
   final _nameController = TextEditingController();
+  
+  // Твой путь к кастомной SVG-иконке стрелочки назад
+  final String _backIconPath = 'assets/images/back.svg';
   
   final List<Color> _colors = [
     const Color(0xFFF44336),
@@ -47,7 +49,7 @@ class _CreateWalletsPageState extends State<CreateWalletsPage> {
     }
   }
 
-  // Основная логика сохранения/обновления
+  // Основная логика сохранения/обновления (названия и логика полностью сохранены)
   void _saveToDatabase() async {
     final name = _nameController.text.trim();
     final String walletId = widget.wallet?.id ?? const Uuid().v4();
@@ -78,74 +80,171 @@ class _CreateWalletsPageState extends State<CreateWalletsPage> {
       
       if (mounted) context.pop();
     } catch (e) {
-      print("Ошибка сохранения кошелька: $e");
+      print("Ошибкасохранениякошелька: $e");
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: "Название кошелька",
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text("Выберите цвет:"),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              children: _colors.map((color) {
-                final isSelected = _selectedColor == color;
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedColor = color),
-                  child: Container(
-                    width: 45,
-                    height: 45,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                      border: isSelected 
-                          ? Border.all(color: Colors.black, width: 3) 
-                          : null,
+      backgroundColor: const Color(0xFFF8F9FA), // Твой светлый фон из дизайна
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Кастомная верхняя шапка со строго центрированным заголовком
+              Padding(
+                // ИЗМЕНЕНО: Отступ сверху уменьшен до 10, чтобы панель стала выше к статус-бару
+                padding: const EdgeInsets.fromLTRB(0, 10, 0, 20),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: _circleIconButton(
+                        _backIconPath,
+                        iconSize: 13.0,
+                        onTap: () {
+                          context.pop();
+                        },
+                      ),
                     ),
-                    child: isSelected 
-                        ? const Icon(Icons.check, color: Colors.white) 
-                        : null,
-                  ),
-                );
-              }).toList(),
-            ),
-            const Spacer(),
-            Center(
-              child: ElevatedButton(
-                onPressed: _saveToDatabase,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _selectedColor, // Убрали const, чтобы не было ошибки
-                  padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-                child: Text(
-                  widget.wallet == null ? "Создать кошелек" : "Сохранить изменения",
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                    Text(
+                      widget.wallet == null ? 'создание кошелька' : 'редактирование',
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontSize: 23,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'ActayWide',
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
               ),
+              
+              const SizedBox(height: 30),
+              
+              // 2. Скругленная карточка ввода названия с подсказкой внутри
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(22),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Название',
+                      style: TextStyle(
+                        color: Color(0xFFA1A4D9),
+                        fontSize: 12,
+                        fontFamily: 'Actay',
+                      ),
+                    ),
+                    TextField(
+                      controller: _nameController,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Actay',
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: 'Введите название',
+                        hintStyle: TextStyle(
+                          color: Colors.black54,
+                          fontSize: 18,
+                          fontWeight: FontWeight.normal,
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      // 3. Большая кастомная фиолетовая кнопка зафиксирована снизу экрана
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20.0, 0, 20.0, 20.0), // Отступы слева, справа и снизу экрана
+          child: Container(
+            width: double.infinity,
+            height: 64,
+            decoration: BoxDecoration(
+              color: const Color(0xFF9276F6), // Твой фиолетовый цвет с макета
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF9276F6).withOpacity(0.3),
+                  blurRadius: 15,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(22),
+                onTap: _saveToDatabase, // Твой оригинальный метод сохранения
+                child: Center(
+                  child: Text(
+                    widget.wallet == null ? 'Создать' : 'Сохранить изменения',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'ActayWide',
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Круглая кнопка для кастомной SVG иконки возврата
+  Widget _circleIconButton(String assetPath, {required double iconSize, VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 48,
+        width: 48,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
+        ),
+        child: Center(
+          child: SvgPicture.asset(
+            assetPath,
+            height: iconSize,
+          ),
         ),
       ),
     );

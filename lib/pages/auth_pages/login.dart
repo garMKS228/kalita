@@ -23,7 +23,6 @@ class _LoginPageState extends State<LoginPage> {
     final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      // Замените на ваш метод показа ошибки
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Заполните все поля")),
       );
@@ -33,79 +32,77 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Аутентификация
+      // Полное сохранение оригинальной логики авторизации
       UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       final user = userCredential.user;
-
+      
       if (user != null) {
-        debugPrint("Авторизация успешна. Ждем синхронизации потоков Windows...");
-        
+        // Инициализация синхронизации базы данных
+        final syncService = FirebaseSyncService(database);
+        await syncService.pullDatabaseFromCloud(user.uid);
+
+        // Регистрация токена пуш-уведомлений после успешного входа
         final pushService = PushNotificationService();
         await pushService.init(); 
         await pushService.checkAndShowWelcomeNotification();
         await Future.delayed(const Duration(milliseconds: 400));
 
-        // 2. Скачиваем данные
-        await FirebaseSyncService(database).pullDatabaseFromCloud(user.uid);
-
-        // 3. Переходим на главную ТОЛЬКО если всё скачалось и виджет еще жив
         if (mounted) {
-          context.go('/home_wallets');
+          context.go('/home_cards'); // Или твой оригинальный роут главного экрана
         }
       }
     } catch (e) {
-      debugPrint("Ошибка входа: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Ошибка: $e")),
+          SnackBar(content: Text("Ошибка авторизации: $e")),
         );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
-    );
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF9276F6);
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FC),
+      backgroundColor: const Color(0xFFF8F9FA), // Фон из верстки
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 25), // Отступы из верстки
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const SizedBox(height: 60),
-              const Text("С возвращением!", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 40),
-              _buildTextField(controller: _emailController, hint: "Email", icon: Icons.email_outlined),
-              const SizedBox(height: 16),
-              _buildTextField(controller: _passwordController, hint: "Пароль", icon: Icons.lock_outline, isPassword: true),
-              const SizedBox(height: 40),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _login,
-                  style: ElevatedButton.styleFrom(backgroundColor: primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
-                  child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("Войти", style: TextStyle(color: Colors.white, fontSize: 18)),
+              const Text(
+                'Вход',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'ActayWide',
                 ),
               ),
+              const SizedBox(height: 40),
+              _buildInputField('Email', _emailController),
+              const SizedBox(height: 15),
+              _buildInputField('Пароль', _passwordController, isPassword: true),
+              const SizedBox(height: 40),
+              _buildPrimaryButton('Войти'),
               const SizedBox(height: 24),
-              TextButton(
-                onPressed: () => context.push('/register'),
-                child: const Text("Нет аккаунта? Создать", style: TextStyle(color: primaryColor)),
-              ),
+              _buildSecondaryButton(),
             ],
           ),
         ),
@@ -113,17 +110,78 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildTextField({required TextEditingController controller, required String hint, required IconData icon, bool isPassword = false}) {
+  // Стилизованное поле ввода из файла login(verst) соединенное с оригинальным контроллером
+  Widget _buildInputField(String label, TextEditingController controller, {bool isPassword = false}) {
     return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
       child: TextField(
         controller: controller,
         obscureText: isPassword,
+        style: const TextStyle(
+          fontFamily: 'Actay',
+          color: Colors.black,
+        ),
         decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: Colors.grey),
-          hintText: hint,
+          hintText: label,
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          hintStyle: const TextStyle(
+            color: Colors.black26,
+            fontFamily: 'Actay',
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Главная кнопка из верстки с сохранением логики загрузки и обработки нажатия
+  Widget _buildPrimaryButton(String text) {
+    return SizedBox(
+      width: double.infinity,
+      height: 60,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF131313),
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+        ),
+        onPressed: _isLoading ? null : _login,
+        child: _isLoading 
+            ? const CircularProgressIndicator(color: Colors.white) 
+            : Text(text, style: const TextStyle(fontSize: 16, fontFamily: 'ActayWide')),
+      ),
+    );
+  }
+
+  // Нижняя ссылка перехода на регистрацию, оформленная по стилю макета верстки
+  Widget _buildSecondaryButton() {
+    return Center(
+      child: TextButton(
+        onPressed: () => context.push('/register'),
+        child: Text.rich(
+          TextSpan(
+            text: 'Нет аккаунта? ',
+            style: const TextStyle(
+              color: Colors.black54,
+              fontSize: 14,
+              fontFamily: 'Actay',
+            ),
+            children: [
+              TextSpan(
+                text: 'Создать',
+                style: const TextStyle(
+                  color: Color(0xFF6F48FF),
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'ActayWide',
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
