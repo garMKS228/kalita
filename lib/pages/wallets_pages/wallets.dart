@@ -168,7 +168,7 @@ class _WalletDetailsPageState extends State<WalletDetailsPage> {
             },
           ),
           const Text(
-            'редактирование кошелька',
+            'редактирование',
             style: TextStyle(
               color: Colors.black,
               fontSize: 20,

@@ -112,7 +112,7 @@ class _CreateWalletsPageState extends State<CreateWalletsPage> {
                       ),
                     ),
                     Text(
-                      widget.wallet == null ? 'создание кошелька' : 'редактирование',
+                      widget.wallet == null ? 'создание' : 'редактирование',
                       style: const TextStyle(
                         color: Colors.black,
                         fontSize: 23,

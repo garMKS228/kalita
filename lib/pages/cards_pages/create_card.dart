@@ -152,7 +152,7 @@ class _CreateCardsPageState extends State<CreateCardsPage> {
                           ),
                         ),
                         Text(
-                          'создание карты',
+                          'создание',
                           style: const TextStyle(
                             color: Colors.black,
                             fontSize: 24,
