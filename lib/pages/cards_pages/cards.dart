@@ -5,12 +5,15 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_application_1/database/database.dart';
 import 'package:flutter_application_1/main.dart';
-
+import 'package:flutter/services.dart';
 import 'package:barcode_widget/barcode_widget.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../services/firebase_sync_service.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:screenshot/screenshot.dart';
+import 'package:path_provider/path_provider.dart';
 
 class CardDetailsPage extends StatefulWidget {
   final CardEntry cardItem;
@@ -120,6 +123,7 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
 
     if (confirm == true) {
       await database.cardsDao.deleteCard(widget.cardItem.id);
+      await FirebaseSyncService(database).deleteCard(widget.cardItem.id);
       if (mounted) {
         context.pop();
       }
@@ -184,18 +188,21 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
     await database.cardsDao.updateFavoriteStatus(widget.cardItem.id, newStatus);
   }
 
-  Future<void> _copyBarcodeToClipboard() async {
+  Future<void> _shareCardBarcode() async {
+    // 1. Делаем скриншот виджета
     final image = await screenshotController.capture();
+    
     if (image != null) {
-      await Pasteboard.writeImage(image);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Штрихкод скопирован в буфер обмена как изображение'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
+      // 2. Получаем временную директорию
+      final directory = await getTemporaryDirectory();
+      final imagePath = await File('${directory.path}/barcode.png').create();
+      await imagePath.writeAsBytes(image);
+
+      // 3. Отправляем файл
+      await Share.shareXFiles(
+        [XFile(imagePath.path)],
+        text: 'Штрих-код карты: ${widget.cardItem.title}',
+      );
     }
   }
 
@@ -280,7 +287,7 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
                       iconColor: isFavorite ? const Color(0xFFFF3B30) : _selectedColor.withOpacity(0.4)
                     ),
                     const SizedBox(width: 12),
-                    _actionButton('assets/images/share.svg', onTap: _copyBarcodeToClipboard, iconColor: _selectedColor),
+                    _actionButton('assets/images/share.svg', onTap: _shareCardBarcode, iconColor: _selectedColor),
                     const SizedBox(width: 12),
                     _actionButton(
                       'assets/images/edit.svg', 
@@ -656,4 +663,6 @@ class _CardDetailsPageState extends State<CardDetailsPage> {
       ),
     );
   }
+
+  
 }
