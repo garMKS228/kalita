@@ -185,40 +185,6 @@ class _HomeCardsPageState extends State<HomeCardsPage> {
               ),
             ),
           ),
-
-          // 3. НИЖНЯЯ ПЛАВАЮЩАЯ ПАНЕЛЬ С КНОПКОЙ ДОБАВЛЕНИЯ (ИЗ homecards)
-          Positioned(
-            left: 20, right: 20, bottom: 30,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Навигационный таб-бар (Карты / Кошелек)
-                AnimatedNavigationSwitch(initialIsCards: true),
-
-                // КРУГЛАЯ КНОПКА ПЛЮС ДЛЯ СОЗДАНИЯ КАРТЫ
-                GestureDetector(
-                  onTap: () {
-                    context.push("/home_cards/create_cards"); // Переход на страницу создания карты
-                  },
-                  child: Container(
-                    height: 64, width: 64,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF131313),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: SvgPicture.asset(
-                        'assets/images/icon_plus.svg',
-                        height: 20,
-                        colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-                        errorBuilder: (context, error, stackTrace) => const Icon(Icons.add, color: Colors.white, size: 28),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );

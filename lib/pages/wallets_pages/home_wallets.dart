@@ -206,8 +206,7 @@ class _HomeWalletsPageState extends State<HomeWalletsPage> {
             ),
           ),
 
-          
-          _buildBottomPanel(),
+        
         ],
       ),
     );
@@ -465,35 +464,6 @@ class _HomeWalletsPageState extends State<HomeWalletsPage> {
     );
   }
 
-  Widget _buildBottomPanel() {
-    return Positioned(
-      bottom: 30, left: 20, right: 20,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Кастомный переключатель табов
-          AnimatedNavigationSwitch(initialIsCards: false),
-          
-          // Круглая черная кнопка создания КОШЕЛЬКА
-          GestureDetector(
-            onTap: () => context.push("/home_wallets/create_wallets"),
-            child: Container(
-              height: 64, width: 64,
-              decoration: const BoxDecoration(color: Color(0xFF131313), shape: BoxShape.circle),
-              child: Center(
-                child: SvgPicture.asset(
-                  'assets/images/icon_plus.svg',
-                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-                  width: 20,
-                  errorBuilder: (c,e,s) => const Icon(Icons.add, color: Colors.white),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _circleIconAsset(String asset, {VoidCallback? onTap}) {
     return GestureDetector(

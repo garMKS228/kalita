@@ -32,7 +32,7 @@ class _AnimatedNavigationSwitchState extends State<AnimatedNavigationSwitch> {
     });
 
     // Даем 150 миллисекунд на то, чтобы ползунок начал визуально уезжать, прежде чем сменится экран
-    Future.delayed(const Duration(milliseconds: 150), () {
+    Future.delayed(const Duration(), () {
       if (!mounted) return;
       
       if (isCards) {
