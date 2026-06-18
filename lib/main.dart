@@ -17,6 +17,27 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import './services/push_notification_service.dart';
 
 
+CustomTransitionPage buildPageWithSlideTransition<T>({
+  required BuildContext context,
+  required GoRouterState state,
+  required Widget child,
+  Offset begin = const Offset(1.0, 0.0), // По умолчанию экран выезжает справа налево
+  }) {
+    return CustomTransitionPage<T>(
+      key: state.pageKey,
+      child: child,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: begin, // Используем переданное значение
+            end: Offset.zero,
+          ).chain(CurveTween(curve: Curves.easeInOut)).animate(animation),
+          child: child,
+        );
+      },
+    );
+  }
+
 late AppDatabase database;
 
 void main() async {
@@ -77,57 +98,91 @@ final GoRouter _router = GoRouter(
   routes: [
     GoRoute(
       path: '/login',
-      builder: (context, state) => const LoginPage(), // Убедись, что LoginPage импортирован
+      pageBuilder: (context, state) => buildPageWithSlideTransition(
+        context: context, 
+        state: state, 
+        child: const LoginPage(),
+      ),
     ),
     GoRoute(
       path: '/settings',
-      builder: (context, state) => const SettingsPage(),
-    ),
-    GoRoute(
-      path: '/login',
-      builder: (context, state) => const LoginPage(),
+      pageBuilder: (context, state) => buildPageWithSlideTransition(
+        context: context, 
+        state: state, 
+        child: const SettingsPage(),
+      ),
     ),
     GoRoute(
       path: '/register',
-      builder: (context, state) => const RegisterPage(),
+      pageBuilder: (context, state) => buildPageWithSlideTransition(
+        context: context, 
+        state: state, 
+        child: const RegisterPage(),
+      ),
     ),
     GoRoute(
       path: '/home_cards',
-      builder: (context, state) => const HomeCardsPage(title: 'Мои Карты'), 
+      // Для главных экранов (табов) иногда лучше использовать FadeTransition (растворение) или вообще отключить анимацию, 
+      // но если хотите сдвиг везде — оставляем так.
+      pageBuilder: (context, state) => buildPageWithSlideTransition(
+        context: context, 
+        state: state, 
+        child: const HomeCardsPage(title: 'Мои Карты'),
+      ),
     ),
     GoRoute(
       path: '/home_wallets',
-      builder: (context, state) => const HomeWalletsPage(title: 'Мои Кошельки'),
+      pageBuilder: (context, state) => buildPageWithSlideTransition(
+        context: context, 
+        state: state, 
+        child: const HomeWalletsPage(title: 'Мои Кошельки'),
+        begin: Offset(-1.0, 0.0)
+      ),
     ),
     GoRoute(
       path: '/home_cards/create_cards',
-      builder: (context, state) {
-        
+      pageBuilder: (context, state) {
         final walletId = state.extra as String?;
-        return CreateCardsPage(title: 'Создание карты', initialWalletId: walletId);
+        return buildPageWithSlideTransition(
+          context: context, 
+          state: state, 
+          child: CreateCardsPage(title: 'Создание карты', initialWalletId: walletId),
+        );
       }, 
     ),
     GoRoute(
       path: '/home_wallets/create_wallets',
-      builder: (context, state) => const CreateWalletsPage(title: 'Создание кошелька'), 
+      pageBuilder: (context, state) => buildPageWithSlideTransition(
+        context: context, 
+        state: state, 
+        child: const CreateWalletsPage(title: 'Создание кошелька'),
+      ),
     ),
     GoRoute(
       path: '/home_wallets/wallets',
-      builder: (context, state) {
-        // Извлекаем объект кошелька из параметров перехода
+      pageBuilder: (context, state) {
         final wallet = state.extra as Wallet; 
-        return WalletDetailsPage(wallet: wallet);
+        return buildPageWithSlideTransition(
+          context: context, 
+          state: state, 
+          child: WalletDetailsPage(wallet: wallet),
+        );
       },
     ),  
     GoRoute(
       path: '/home_cards/cards',
-      builder: (context, state) {
+      pageBuilder: (context, state) {
         final card = state.extra as CardEntry;
-        return CardDetailsPage(cardItem: card);
+        return buildPageWithSlideTransition(
+          context: context, 
+          state: state, 
+          child: CardDetailsPage(cardItem: card),
+        );
       }, 
     ),
   ],
 );
+
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
